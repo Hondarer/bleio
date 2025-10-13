@@ -31,5 +31,8 @@ class Program
         // GPIO34 (入力専用ピン) を読み取り
         bool state = await client.DigitalReadAsync(34);
         Console.WriteLine($"GPIO34 の状態: {state}");
+
+        // 自動点滅の開始
+        await client.StartBlinkAsync(2, BleGpioClient.BlinkMode.Blink250ms);
     }
 }

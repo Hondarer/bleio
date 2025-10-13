@@ -6,7 +6,7 @@ espio は、ESP32 を使った BLE (Bluetooth Low Energy) ベースのリモー�
 
 BLE 経由で ESP32 の GPIO を直接制御できます。ドライバのインストールは不要で、Windows 標準の BLE スタックを使用します。
 
-GPIO のモード設定 (入力、出力、プルアップ付き入力) と、デジタル入出力 (HIGH/LOW の書き込みと読み取り) に対応しています。
+GPIO のモード設定 (入力、出力、プルアップ付き入力)、デジタル入出力 (HIGH/LOW の書き込みと読み取り)、および自動点滅機能 (250ms/500ms 周期) に対応しています。
 
 C# で書かれた Windows 用のサンプルクライアントを同梱しています。
 
@@ -90,14 +90,28 @@ BLE GATT サービスを使用して GPIO を制御します。
 
 - GPIO 書き込み (UUID: `beb5483e-36e1-4688-b7f5-ea07361b26a8`)
   - プロパティ: WRITE
-  - 用途: GPIO モード設定と出力制御
+  - 用途: GPIO モード設定、出力制御、点滅制御
 - GPIO 読み取り (UUID: `1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e`)
   - プロパティ: READ, WRITE
   - 用途: GPIO 入力状態の読み取り
 
+**対応コマンド**
+
+- SET_INPUT (0): 入力モードに設定
+- SET_OUTPUT (1): 出力モードに設定
+- SET_INPUT_PULLUP (2): プルアップ入力モードに設定
+- WRITE_LOW (10): LOW 出力
+- WRITE_HIGH (11): HIGH 出力
+- BLINK_500MS (12): 500ms 周期の点滅
+- BLINK_250MS (13): 250ms 周期の点滅
+
+詳細な仕様は `docs-src/protocol.md` を参照してください。
+
 ## 使用例
 
-```{.csharp caption="client/Program.cs"}
+### 基本的な GPIO 制御
+
+```{.csharp caption="手動で LED を点滅"}
 using var client = new BleGpioClient();
 
 // デバイスに接続
@@ -106,7 +120,7 @@ await client.ConnectAsync("ESP32-GPIO");
 // GPIO2 (LED) を出力モードに設定
 await client.SetPinModeAsync(2, BleGpioClient.PinMode.Output);
 
-// LED を点滅
+// LED を手動で点滅
 for (int i = 0; i < 5; i++)
 {
     await client.DigitalWriteAsync(2, true);  // HIGH
@@ -118,6 +132,22 @@ for (int i = 0; i < 5; i++)
 // GPIO34 の状態を読み取り
 bool state = await client.DigitalReadAsync(34);
 Console.WriteLine($"GPIO34: {state}");
+```
+
+### 自動点滅機能
+
+```{.csharp caption="自動点滅"}
+using var client = new BleGpioClient();
+await client.ConnectAsync("ESP32-GPIO");
+
+// GPIO2 を 500ms 周期で点滅開始
+await client.StartBlinkAsync(2, BleGpioClient.BlinkMode.Blink500ms);
+
+// 5 秒間点滅させる
+await Task.Delay(5000);
+
+// 点滅を停止して LOW にする
+await client.DigitalWriteAsync(2, false);
 ```
 
 ## ライセンス

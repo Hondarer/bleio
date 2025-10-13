@@ -372,4 +372,34 @@ public class BleGpioClient : IDisposable
         Output = 1,
         InputPullup = 2
     }
+
+    public enum BlinkMode : byte
+    {
+        Blink500ms = 12,
+        Blink250ms = 13
+    }
+
+    public async Task StartBlinkAsync(byte pin, BlinkMode mode)
+    {
+        if (_writeCharacteristic == null)
+        {
+            throw new InvalidOperationException("デバイスに接続されていません");
+        }
+
+        byte[] data = { pin, (byte)mode };
+        var writer = new DataWriter();
+        writer.WriteBytes(data);
+
+        var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
+
+        if (result == GattCommunicationStatus.Success)
+        {
+            string period = mode == BlinkMode.Blink250ms ? "250ms" : "500ms";
+            Console.WriteLine($"GPIO{pin} の点滅を開始しました ({period} 周期)");
+        }
+        else
+        {
+            Console.WriteLine($"GPIO{pin} の点滅開始に失敗しました");
+        }
+    }
 }
