@@ -6,371 +6,373 @@ using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Devices.Enumeration;
 using Windows.Storage.Streams;
 
-public class BleGpioClient : IDisposable
+namespace Hondarersoft.Bleio
 {
-    private const string ServiceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c333914b";
-    private const string CharGpioWriteUuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-    private const string CharGpioReadUuid = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
-
-    private BluetoothLEDevice? _device;
-    private GattDeviceService? _service;
-    private GattCharacteristic? _writeCharacteristic;
-    private GattCharacteristic? _readCharacteristic;
-
-    public async Task<bool> ConnectAsync(string deviceName = "ESP32-GPIO")
+    public class BleioClient : IDisposable
     {
-        try
+        private const string ServiceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c333914b";
+        private const string CharGpioWriteUuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        private const string CharGpioReadUuid = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
+
+        private BluetoothLEDevice? _device;
+        private GattDeviceService? _service;
+        private GattCharacteristic? _writeCharacteristic;
+        private GattCharacteristic? _readCharacteristic;
+
+        public async Task<bool> ConnectAsync(string deviceName = "BLEIO")
         {
-            // デバイスを検索
-            var selector = BluetoothLEDevice.GetDeviceSelectorFromDeviceName(deviceName);
-            var devices = await DeviceInformation.FindAllAsync(selector);
-
-            if (devices.Count == 0)
+            try
             {
-                Console.WriteLine($"デバイス '{deviceName}' が見つかりません");
-                return false;
-            }
+                // デバイスを検索
+                var selector = BluetoothLEDevice.GetDeviceSelectorFromDeviceName(deviceName);
+                var devices = await DeviceInformation.FindAllAsync(selector);
 
-            // デバイスに接続
-            _device = await BluetoothLEDevice.FromIdAsync(devices[0].Id);
-
-            if (_device == null)
-            {
-                Console.WriteLine("デバイスへの接続に失敗しました");
-                return false;
-            }
-
-            return await InitializeDeviceAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
-            Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-            CleanupResources();
-            return false;
-        }
-    }
-
-    public async Task<bool> ConnectByMacAddressAsync(string macAddress)
-    {
-        // "aa:bb:cc:dd:ee:ff" 形式の文字列を ulong に変換
-        try
-        {
-            var bytes = macAddress.Split(':')
-                .Select(hex => Convert.ToByte(hex, 16))
-                .ToArray();
-
-            if (bytes.Length != 6)
-            {
-                Console.WriteLine($"無効な MAC アドレス形式です: {macAddress} (期待: aa:bb:cc:dd:ee:ff)");
-                return false;
-            }
-
-            ulong bluetoothAddress = 0;
-            for (int i = 0; i < 6; i++)
-            {
-                bluetoothAddress |= ((ulong)bytes[i]) << (8 * (5 - i));
-            }
-
-            return await ConnectByMacAddressAsync(bluetoothAddress);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"MAC アドレスの解析に失敗しました: {macAddress}");
-            Console.WriteLine($"エラー: {ex.Message}");
-            return false;
-        }
-    }
-
-    public async Task<bool> ConnectByMacAddressAsync(ulong bluetoothAddress)
-    {
-        try
-        {
-            // MAC アドレスの表示
-            var macString = string.Join(":",
-                Enumerable.Range(0, 6)
-                    .Select(i => ((bluetoothAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
-            Console.WriteLine($"MAC アドレス {macString} のデバイスに接続を試みています...");
-
-            // MAC アドレスから直接接続
-            _device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress);
-
-            if (_device == null)
-            {
-                Console.WriteLine($"MAC アドレス {macString} のデバイスへの接続に失敗しました");
-                return false;
-            }
-
-            return await InitializeDeviceAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
-            Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-            CleanupResources();
-            return false;
-        }
-    }
-
-    private async Task<bool> InitializeDeviceAsync()
-    {
-        try
-        {
-            if (_device == null)
-            {
-                Console.WriteLine("デバイスが初期化されていません");
-                return false;
-            }
-
-            Console.WriteLine($"デバイスに接続しました: {_device.Name}");
-
-            // MAC アドレスをコロン区切りで表示
-            var macAddress = _device.BluetoothAddress;
-            var macString = string.Join(":",
-                Enumerable.Range(0, 6)
-                    .Select(i => ((macAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
-            Console.WriteLine($"  Bluetooth アドレス: {macString}");
-            Console.WriteLine($"  デバイス ID: {_device.DeviceId}");
-
-            // GATT サービスを取得
-            Console.WriteLine("すべての GATT サービスを確認しています...");
-
-            var allServicesResult = await _device.GetGattServicesAsync();
-            if (allServicesResult.Status == GattCommunicationStatus.Success)
-            {
-                Console.WriteLine($"見つかったサービス数: {allServicesResult.Services.Count}");
-                var targetUuid = Guid.Parse(ServiceUuid);
-
-                foreach (var svc in allServicesResult.Services)
+                if (devices.Count == 0)
                 {
-                    Console.WriteLine($"  - UUID: {svc.Uuid}");
-                    if (svc.Uuid == targetUuid)
+                    Console.WriteLine($"デバイス '{deviceName}' が見つかりません");
+                    return false;
+                }
+
+                // デバイスに接続
+                _device = await BluetoothLEDevice.FromIdAsync(devices[0].Id);
+
+                if (_device == null)
+                {
+                    Console.WriteLine("デバイスへの接続に失敗しました");
+                    return false;
+                }
+
+                return await InitializeDeviceAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
+                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
+                CleanupResources();
+                return false;
+            }
+        }
+
+        public async Task<bool> ConnectByMacAddressAsync(string macAddress)
+        {
+            // "aa:bb:cc:dd:ee:ff" 形式の文字列を ulong に変換
+            try
+            {
+                var bytes = macAddress.Split(':')
+                    .Select(hex => Convert.ToByte(hex, 16))
+                    .ToArray();
+
+                if (bytes.Length != 6)
+                {
+                    Console.WriteLine($"無効な MAC アドレス形式です: {macAddress} (期待: aa:bb:cc:dd:ee:ff)");
+                    return false;
+                }
+
+                ulong bluetoothAddress = 0;
+                for (int i = 0; i < 6; i++)
+                {
+                    bluetoothAddress |= ((ulong)bytes[i]) << (8 * (5 - i));
+                }
+
+                return await ConnectByMacAddressAsync(bluetoothAddress);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MAC アドレスの解析に失敗しました: {macAddress}");
+                Console.WriteLine($"エラー: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> ConnectByMacAddressAsync(ulong bluetoothAddress)
+        {
+            try
+            {
+                // MAC アドレスの表示
+                var macString = string.Join(":",
+                    Enumerable.Range(0, 6)
+                        .Select(i => ((bluetoothAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
+                Console.WriteLine($"MAC アドレス {macString} のデバイスに接続を試みています...");
+
+                // MAC アドレスから直接接続
+                _device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress);
+
+                if (_device == null)
+                {
+                    Console.WriteLine($"MAC アドレス {macString} のデバイスへの接続に失敗しました");
+                    return false;
+                }
+
+                return await InitializeDeviceAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
+                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
+                CleanupResources();
+                return false;
+            }
+        }
+
+        private async Task<bool> InitializeDeviceAsync()
+        {
+            try
+            {
+                if (_device == null)
+                {
+                    Console.WriteLine("デバイスが初期化されていません");
+                    return false;
+                }
+
+                Console.WriteLine($"デバイスに接続しました: {_device.Name}");
+
+                // MAC アドレスをコロン区切りで表示
+                var macAddress = _device.BluetoothAddress;
+                var macString = string.Join(":",
+                    Enumerable.Range(0, 6)
+                        .Select(i => ((macAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
+                Console.WriteLine($"  Bluetooth アドレス: {macString}");
+                Console.WriteLine($"  デバイス ID: {_device.DeviceId}");
+
+                // GATT サービスを取得
+                Console.WriteLine("すべての GATT サービスを確認しています...");
+
+                var allServicesResult = await _device.GetGattServicesAsync();
+                if (allServicesResult.Status == GattCommunicationStatus.Success)
+                {
+                    Console.WriteLine($"見つかったサービス数: {allServicesResult.Services.Count}");
+                    var targetUuid = Guid.Parse(ServiceUuid);
+
+                    foreach (var svc in allServicesResult.Services)
                     {
-                        _service = svc;
-                        Console.WriteLine($"    - 目的のサービスを発見しました");
-                    }
-                    else
-                    {
-                        // 使用しないサービスは即座に破棄
-                        svc.Dispose();
+                        Console.WriteLine($"  - UUID: {svc.Uuid}");
+                        if (svc.Uuid == targetUuid)
+                        {
+                            _service = svc;
+                            Console.WriteLine($"    - 目的のサービスを発見しました");
+                        }
+                        else
+                        {
+                            // 使用しないサービスは即座に破棄
+                            svc.Dispose();
+                        }
                     }
                 }
-            }
 
-            if (_service == null)
+                if (_service == null)
+                {
+                    Console.WriteLine($"サービス UUID {ServiceUuid} が見つかりませんでした");
+                    CleanupResources();
+                    return false;
+                }
+
+                // 書き込み用キャラクタリスティックを取得
+                var writeCharResult = await _service.GetCharacteristicsForUuidAsync(
+                    Guid.Parse(CharGpioWriteUuid));
+
+                if (writeCharResult.Status == GattCommunicationStatus.Success && writeCharResult.Characteristics.Count > 0)
+                {
+                    _writeCharacteristic = writeCharResult.Characteristics[0];
+                    Console.WriteLine("書き込み用キャラクタリスティックを取得しました");
+                }
+                else
+                {
+                    Console.WriteLine("書き込み用キャラクタリスティックの取得に失敗しました");
+                    CleanupResources();
+                    return false;
+                }
+
+                // 読み取り用キャラクタリスティックを取得
+                var readCharResult = await _service.GetCharacteristicsForUuidAsync(
+                    Guid.Parse(CharGpioReadUuid));
+
+                if (readCharResult.Status == GattCommunicationStatus.Success && readCharResult.Characteristics.Count > 0)
+                {
+                    _readCharacteristic = readCharResult.Characteristics[0];
+                    Console.WriteLine("読み取り用キャラクタリスティックを取得しました");
+                }
+                else
+                {
+                    Console.WriteLine("読み取り用キャラクタリスティックの取得に失敗しました");
+                    CleanupResources();
+                    return false;
+                }
+
+                Console.WriteLine("GATT サービスの初期化が完了しました");
+                return true;
+            }
+            catch (Exception ex)
             {
-                Console.WriteLine($"サービス UUID {ServiceUuid} が見つかりませんでした");
+                Console.WriteLine($"デバイス初期化エラー: {ex.Message}");
+                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
                 CleanupResources();
                 return false;
             }
+        }
 
-            // 書き込み用キャラクタリスティックを取得
-            var writeCharResult = await _service.GetCharacteristicsForUuidAsync(
-                Guid.Parse(CharGpioWriteUuid));
+        private void CleanupResources()
+        {
+            _writeCharacteristic = null;
+            _readCharacteristic = null;
 
-            if (writeCharResult.Status == GattCommunicationStatus.Success && writeCharResult.Characteristics.Count > 0)
-            {
-                _writeCharacteristic = writeCharResult.Characteristics[0];
-                Console.WriteLine("書き込み用キャラクタリスティックを取得しました");
-            }
-            else
-            {
-                Console.WriteLine("書き込み用キャラクタリスティックの取得に失敗しました");
-                CleanupResources();
-                return false;
-            }
+            _service?.Dispose();
+            _service = null;
 
-            // 読み取り用キャラクタリスティックを取得
-            var readCharResult = await _service.GetCharacteristicsForUuidAsync(
-                Guid.Parse(CharGpioReadUuid));
+            _device?.Dispose();
+            _device = null;
 
-            if (readCharResult.Status == GattCommunicationStatus.Success && readCharResult.Characteristics.Count > 0)
+            Console.WriteLine("リソースをクリーンアップしました");
+        }
+
+        public async Task SetPinModeAsync(byte pin, PinMode mode)
+        {
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
+        }
+
+        public async Task SendCommandsAsync(GpioCommand[] commands)
+        {
+            if (_writeCharacteristic == null)
             {
-                _readCharacteristic = readCharResult.Characteristics[0];
-                Console.WriteLine("読み取り用キャラクタリスティックを取得しました");
-            }
-            else
-            {
-                Console.WriteLine("読み取り用キャラクタリスティックの取得に失敗しました");
-                CleanupResources();
-                return false;
+                throw new InvalidOperationException("デバイスに接続されていません");
             }
 
-            Console.WriteLine("GATT サービスの初期化が完了しました");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"デバイス初期化エラー: {ex.Message}");
-            Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-            CleanupResources();
-            return false;
-        }
-    }
+            if (commands.Length == 0 || commands.Length > 24)
+            {
+                throw new ArgumentException("コマンド数は 1-24 の範囲で指定してください");
+            }
 
-    private void CleanupResources()
-    {
-        _writeCharacteristic = null;
-        _readCharacteristic = null;
+            var writer = new DataWriter();
 
-        _service?.Dispose();
-        _service = null;
+            // コマンド個数を書き込む
+            writer.WriteByte((byte)commands.Length);
 
-        _device?.Dispose();
-        _device = null;
-
-        Console.WriteLine("リソースをクリーンアップしました");
-    }
-
-    public async Task SetPinModeAsync(byte pin, PinMode mode)
-    {
-        await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
-    }
-
-    public async Task SendCommandsAsync(GpioCommand[] commands)
-    {
-        if (_writeCharacteristic == null)
-        {
-            throw new InvalidOperationException("デバイスに接続されていません");
-        }
-
-        if (commands.Length == 0 || commands.Length > 61)
-        {
-            throw new ArgumentException("コマンド数は 1-61 の範囲で指定してください");
-        }
-
-        var writer = new DataWriter();
-
-        // コマンド個数を書き込む
-        writer.WriteByte((byte)commands.Length);
-
-        // 各コマンドを書き込む (ピン番号、コマンド、パラメータ1、パラメータ2)
-        foreach (var cmd in commands)
-        {
-            writer.WriteByte(cmd.Pin);
-            writer.WriteByte(cmd.Command);
-            writer.WriteByte(cmd.Param1);
-            writer.WriteByte(cmd.Param2);
-        }
-
-        var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
-
-        if (result == GattCommunicationStatus.Success)
-        {
-            Console.WriteLine($"{commands.Length} 個のコマンドを送信しました");
+            // 各コマンドを書き込む (ピン番号、コマンド、パラメータ1、パラメータ2)
             foreach (var cmd in commands)
             {
-                Console.WriteLine($"    {cmd.Pin}, {cmd.Command}, {cmd.Param1}, {cmd.Param2}");
+                writer.WriteByte(cmd.Pin);
+                writer.WriteByte(cmd.Command);
+                writer.WriteByte(cmd.Param1);
+                writer.WriteByte(cmd.Param2);
+            }
+
+            var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
+
+            if (result == GattCommunicationStatus.Success)
+            {
+                Console.WriteLine($"{commands.Length} 個のコマンドを送信しました");
+                foreach (var cmd in commands)
+                {
+                    Console.WriteLine($"    {cmd.Pin}, {cmd.Command}, {cmd.Param1}, {cmd.Param2}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"コマンドの送信に失敗しました");
             }
         }
-        else
+
+        public async Task DigitalWriteAsync(byte pin, bool value)
         {
-            Console.WriteLine($"コマンドの送信に失敗しました");
-        }
-    }
-
-    public async Task DigitalWriteAsync(byte pin, bool value)
-    {
-        byte command = value ? (byte)11 : (byte)10;
-        await SendCommandsAsync(new[] { new GpioCommand(pin, command, 0, 0) });
-    }
-
-    public async Task<bool?> DigitalReadAsync(byte pin)
-    {
-        var inputs = await ReadAllInputsAsync();
-        var pinData = inputs.FirstOrDefault(i => i.Pin == pin);
-
-        if (pinData.Pin == 0 && pin != 0)
-        {
-            Console.WriteLine($"GPIO{pin} は入力モードに設定されていません");
-            return null;
+            byte command = value ? (byte)11 : (byte)10;
+            await SendCommandsAsync(new[] { new GpioCommand(pin, command, 0, 0) });
         }
 
-        //Console.WriteLine($"GPIO{pin} の状態: {(pinData.State ? "HIGH" : "LOW")}");
-        return pinData.State;
-    }
-
-    public async Task<(byte Pin, bool State)[]> ReadAllInputsAsync()
-    {
-        if (_readCharacteristic == null)
+        public async Task<bool?> DigitalReadAsync(byte pin)
         {
-            throw new InvalidOperationException("デバイスに接続されていません");
-        }
+            var inputs = await ReadAllInputsAsync();
+            var pinData = inputs.FirstOrDefault(i => i.Pin == pin);
 
-        try
-        {
-            Console.WriteLine("すべての入力ピンの状態を読み取ります...");
-
-            var readResult = await _readCharacteristic.ReadValueAsync(BluetoothCacheMode.Uncached);
-
-            if (readResult.Status != GattCommunicationStatus.Success)
+            if (pinData.Pin == 0 && pin != 0)
             {
-                Console.WriteLine($"読み取りに失敗しました: {readResult.Status}");
+                Console.WriteLine($"GPIO{pin} は入力モードに設定されていません");
+                return null;
+            }
+
+            return pinData.State;
+        }
+
+        public async Task<(byte Pin, bool State)[]> ReadAllInputsAsync()
+        {
+            if (_readCharacteristic == null)
+            {
+                throw new InvalidOperationException("デバイスに接続されていません");
+            }
+
+            try
+            {
+                Console.WriteLine("すべての入力ピンの状態を読み取ります...");
+
+                var readResult = await _readCharacteristic.ReadValueAsync(BluetoothCacheMode.Uncached);
+
+                if (readResult.Status != GattCommunicationStatus.Success)
+                {
+                    Console.WriteLine($"読み取りに失敗しました: {readResult.Status}");
+                    return Array.Empty<(byte, bool)>();
+                }
+
+                var reader = DataReader.FromBuffer(readResult.Value);
+                byte[] response = new byte[reader.UnconsumedBufferLength];
+                reader.ReadBytes(response);
+
+                if (response.Length < 1)
+                {
+                    Console.WriteLine("データが空です");
+                    return Array.Empty<(byte, bool)>();
+                }
+
+                byte count = response[0];
+                int expectedLen = 1 + count * 2;
+
+                if (response.Length != expectedLen)
+                {
+                    Console.WriteLine($"データ長が不正です (期待: {expectedLen}, 実際: {response.Length})");
+                    return Array.Empty<(byte, bool)>();
+                }
+
+                var inputs = new (byte Pin, bool State)[count];
+                for (int i = 0; i < count; i++)
+                {
+                    byte pin = response[1 + i * 2];
+                    bool state = response[1 + i * 2 + 1] != 0;
+                    inputs[i] = (pin, state);
+                    Console.WriteLine($"    GPIO{pin}: {(state ? "HIGH" : "LOW")}");
+                }
+
+                Console.WriteLine($"{count} 個の入力ピンの状態を取得しました");
+                return inputs;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"読み取り中に例外が発生しました: {ex.Message}");
+                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
                 return Array.Empty<(byte, bool)>();
             }
-
-            var reader = DataReader.FromBuffer(readResult.Value);
-            byte[] response = new byte[reader.UnconsumedBufferLength];
-            reader.ReadBytes(response);
-
-            if (response.Length < 1)
-            {
-                Console.WriteLine("データが空です");
-                return Array.Empty<(byte, bool)>();
-            }
-
-            byte count = response[0];
-            int expectedLen = 1 + count * 2;
-
-            if (response.Length != expectedLen)
-            {
-                Console.WriteLine($"データ長が不正です (期待: {expectedLen}, 実際: {response.Length})");
-                return Array.Empty<(byte, bool)>();
-            }
-
-            var inputs = new (byte Pin, bool State)[count];
-            for (int i = 0; i < count; i++)
-            {
-                byte pin = response[1 + i * 2];
-                bool state = response[1 + i * 2 + 1] != 0;
-                inputs[i] = (pin, state);
-                Console.WriteLine($"    GPIO{pin}: {(state ? "HIGH" : "LOW")}");
-            }
-
-            Console.WriteLine($"{count} 個の入力ピンの状態を取得しました");
-            return inputs;
         }
-        catch (Exception ex)
+
+        public void Dispose()
         {
-            Console.WriteLine($"読み取り中に例外が発生しました: {ex.Message}");
-            Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-            return Array.Empty<(byte, bool)>();
+            CleanupResources();
         }
-    }
 
-    public void Dispose()
-    {
-        CleanupResources();
-    }
+        public enum PinMode : byte
+        {
+            Output = 0,
+            InputFloating = 1,
+            InputPullup = 2,
+            InputPulldown = 3
+        }
 
-    public enum PinMode : byte
-    {
-        Output = 0,
-        InputFloating = 1,
-        InputPullup = 2,
-        InputPulldown = 3
-    }
+        public enum BlinkMode : byte
+        {
+            Blink500ms = 12,
+            Blink250ms = 13
+        }
 
-    public enum BlinkMode : byte
-    {
-        Blink500ms = 12,
-        Blink250ms = 13
-    }
+        public async Task StartBlinkAsync(byte pin, BlinkMode mode)
+        {
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
+        }
 
-    public async Task StartBlinkAsync(byte pin, BlinkMode mode)
-    {
-        await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
+        public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
     }
-
-    public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
 }

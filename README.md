@@ -1,6 +1,6 @@
-# espio
+# bleio
 
-espio は、ESP32 を使った BLE (Bluetooth Low Energy) ベースのリモート GPIO 制御システムです。Windows PC から ESP32 の GPIO を BLE 経由で制御できます。
+bleio は、ESP32 を使った BLE (Bluetooth Low Energy) ベースのリモート GPIO 制御システムです。Windows PC から ESP32 の GPIO を BLE 経由で制御できます。
 
 ## 特徴
 
@@ -40,8 +40,8 @@ DOIT ESP32 DevKit V1 を使用します。ESP-IDF フレームワークと NimBL
 リポジトリをクローンし、サブモジュールを初期化します。
 
 ```bash
-git clone https://github.com/Hondarer/espio.git
-cd espio
+git clone https://github.com/Hondarer/bleio.git
+cd bleio
 git submodule update --init --recursive
 ```
 
@@ -58,7 +58,7 @@ pio run --target upload
 pio device monitor
 ```
 
-起動メッセージに "ESP32 GPIO Control Service" と表示されれば成功です。
+起動メッセージに "Starting BLEIO-ESP32 Service" と表示されれば成功です。
 
 ### クライアントのセットアップ
 
@@ -70,7 +70,7 @@ dotnet build
 dotnet run
 ```
 
-"ESP32-GPIO" という名前の BLE デバイスを自動的に検索して接続します。
+"BLEIO-ESP32" という名前の BLE デバイスを自動的に検索して接続します。
 
 ## 使い方
 
@@ -91,19 +91,21 @@ BLE GATT サービスを使用して GPIO を制御します。
 - GPIO 書き込み (UUID: `beb5483e-36e1-4688-b7f5-ea07361b26a8`)
   - プロパティ: WRITE
   - 用途: GPIO モード設定、出力制御、点滅制御
+  - 最大 24 コマンドの一括送信に対応
 - GPIO 読み取り (UUID: `1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e`)
-  - プロパティ: READ, WRITE
-  - 用途: GPIO 入力状態の読み取り
+  - プロパティ: READ
+  - 用途: すべての入力 GPIO の状態を一括取得
 
 **対応コマンド**
 
-- SET_INPUT (0): 入力モードに設定
-- SET_OUTPUT (1): 出力モードに設定
-- SET_INPUT_PULLUP (2): プルアップ入力モードに設定
-- WRITE_LOW (10): LOW 出力
-- WRITE_HIGH (11): HIGH 出力
-- BLINK_500MS (12): 500ms 周期の点滅
-- BLINK_250MS (13): 250ms 周期の点滅
+- SET_OUTPUT (0): 出力モードに設定
+- SET_INPUT_FLOATING (1): ハイインピーダンス入力モードに設定
+- SET_INPUT_PULLUP (2): 内部プルアップ付き入力モードに設定
+- SET_INPUT_PULLDOWN (3): 内部プルダウン付き入力モードに設定
+- WRITE_LOW (10): LOW 出力 (自動的に出力モードに設定)
+- WRITE_HIGH (11): HIGH 出力 (自動的に出力モードに設定)
+- BLINK_500MS (12): 500ms 周期の点滅 (自動的に出力モードに設定)
+- BLINK_250MS (13): 250ms 周期の点滅 (自動的に出力モードに設定)
 
 詳細な仕様は `docs-src/protocol.md` を参照してください。
 
@@ -115,7 +117,7 @@ BLE GATT サービスを使用して GPIO を制御します。
 using var client = new BleGpioClient();
 
 // デバイスに接続
-await client.ConnectAsync("ESP32-GPIO");
+await client.ConnectAsync("BLEIO-ESP32");
 
 // GPIO2 (LED) を出力モードに設定
 await client.SetPinModeAsync(2, BleGpioClient.PinMode.Output);
@@ -129,16 +131,19 @@ for (int i = 0; i < 5; i++)
     await Task.Delay(500);
 }
 
-// GPIO34 の状態を読み取り
-bool state = await client.DigitalReadAsync(34);
-Console.WriteLine($"GPIO34: {state}");
+// すべての入力 GPIO を一括読み取り
+var inputs = await client.ReadAllInputsAsync();
+foreach (var (pin, state) in inputs)
+{
+    Console.WriteLine($"GPIO{pin}: {state}");
+}
 ```
 
 ### 自動点滅機能
 
 ```{.csharp caption="自動点滅"}
 using var client = new BleGpioClient();
-await client.ConnectAsync("ESP32-GPIO");
+await client.ConnectAsync("BLEIO-ESP32");
 
 // GPIO2 を 500ms 周期で点滅開始
 await client.StartBlinkAsync(2, BleGpioClient.BlinkMode.Blink500ms);
