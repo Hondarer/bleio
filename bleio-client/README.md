@@ -382,8 +382,8 @@ await client.DigitalWriteAsync(2, false);
 // GPIO2 を 50% デューティサイクル、10 kHz で PWM 出力
 await client.SetPwmAsync(2, 0.5, BleioClient.PwmFrequency.Freq10kHz);
 
-// GPIO4 を 75% デューティサイクル、デフォルト周波数 (1 kHz) で PWM 出力
-await client.SetPwmAsync(4, 0.75);
+// GPIO12 を 75% デューティサイクル、デフォルト周波数 (1 kHz) で PWM 出力
+await client.SetPwmAsync(12, 0.75);
 
 // LED の明るさを段階的に変化させる
 for (double brightness = 0.0; brightness <= 1.0; brightness += 0.1)
@@ -402,8 +402,8 @@ await client.DigitalWriteAsync(2, false);
 var commands = new[]
 {
     new BleioClient.GpioCommand(2, 0, 0, 0),   // GPIO2 を出力モードに設定
-    new BleioClient.GpioCommand(4, 11, 0, 0),  // GPIO4 を HIGH に設定
-    new BleioClient.GpioCommand(5, 10, 0, 0)   // GPIO5 を LOW に設定
+    new BleioClient.GpioCommand(12, 2, 0, 0),  // GPIO12 を HIGH に設定
+    new BleioClient.GpioCommand(13, 1, 0, 0)   // GPIO13 を LOW に設定
 };
 
 await client.SendCommandsAsync(commands);
