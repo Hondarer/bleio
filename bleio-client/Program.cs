@@ -97,8 +97,6 @@ class Program
             // ADC を無効化
             await client.DisableAdcAsync(32);
             Console.WriteLine("GPIO32 の ADC を無効化しました");
-
-            Console.WriteLine("すべての操作が完了しました");
         }
         catch (InvalidOperationException ex)
         {

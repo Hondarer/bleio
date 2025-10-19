@@ -2,9 +2,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
+using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Devices.Enumeration;
 using Windows.Storage.Streams;
+using Windows.Foundation;
 
 namespace Hondarersoft.Bleio
 {
@@ -22,26 +24,76 @@ namespace Hondarersoft.Bleio
         private GattCharacteristic? _adcReadCharacteristic;
         private bool _isConnected = false;
 
-        public async Task<bool> ConnectAsync(string deviceName = "BLEIO")
+        public async Task<bool> ConnectAsync(
+            string? deviceName = null,
+            string serviceUuid = ServiceUuid,
+            int timeoutMs = 8000)
         {
             try
             {
-                // デバイスを検索
-                var selector = BluetoothLEDevice.GetDeviceSelectorFromDeviceName(deviceName);
-                var devices = await DeviceInformation.FindAllAsync(selector);
+                var target = Guid.Parse(serviceUuid);
 
-                if (devices.Count == 0)
+                // 1台見つかったら完了
+                var tcs = new TaskCompletionSource<BluetoothLEDevice?>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+
+                var watcher = new BluetoothLEAdvertisementWatcher
                 {
-                    Console.WriteLine($"デバイス '{deviceName}' が見つかりません");
-                    return false;
-                }
+                    ScanningMode = BluetoothLEScanningMode.Active,
+                    AdvertisementFilter = new BluetoothLEAdvertisementFilter()
+                };
+                watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(target);
 
-                // デバイスに接続
-                _device = await BluetoothLEDevice.FromIdAsync(devices[0].Id);
+                // 名前比較は OrdinalIgnoreCase で
+                bool HasNameMatch(string? n) =>
+                    !string.IsNullOrWhiteSpace(deviceName)
+                    ? !string.IsNullOrWhiteSpace(n) &&
+                      n.IndexOf(deviceName!, StringComparison.OrdinalIgnoreCase) >= 0
+                    : true; // フィルタ指定なしなら無条件でOK
+
+                TypedEventHandler<BluetoothLEAdvertisementWatcher, BluetoothLEAdvertisementReceivedEventArgs>? handler = null;
+                handler = async (w, e) =>
+                {
+                    try
+                    {
+                        // 接続して Name を確認
+                        var dev = await BluetoothLEDevice.FromBluetoothAddressAsync(e.BluetoothAddress);
+                        if (dev != null)
+                        {
+                            if (HasNameMatch(dev.Name))
+                            {
+                                tcs.TrySetResult(dev);
+                            }
+                            else
+                            {
+                                // フィルタ不一致なら破棄
+                                dev.Dispose();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // 1 件ごとの取得失敗は無視して継続
+                    }
+                };
+
+                watcher.Received += handler!;
+                watcher.Start();
+
+                using var cts = new System.Threading.CancellationTokenSource(timeoutMs);
+                using var reg = cts.Token.Register(() => tcs.TrySetResult(null));
+
+                _device = await tcs.Task;
+
+                watcher.Received -= handler!;
+                watcher.Stop();
 
                 if (_device == null)
                 {
-                    Console.WriteLine("デバイスへの接続に失敗しました");
+                    if (!string.IsNullOrWhiteSpace(deviceName))
+                        Console.WriteLine($"サービスUUID {target} かつ 名前に \"{deviceName}\" を含むデバイスは見つかりません (timeout {timeoutMs}ms)");
+                    else
+                        Console.WriteLine($"サービスUUID {target} を広告するデバイスが見つかりません (timeout {timeoutMs}ms)");
                     return false;
                 }
 
@@ -49,7 +101,7 @@ namespace Hondarersoft.Bleio
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
+                Console.WriteLine($"UUID探索接続エラー({ex}): {ex.Message}");
                 Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
                 CleanupResources();
                 return false;
@@ -129,41 +181,34 @@ namespace Hondarersoft.Bleio
 
                 Console.WriteLine($"デバイスに接続しました: {_device.Name}");
 
-                // MAC アドレスをコロン区切りで表示
-                var macAddress = _device.BluetoothAddress;
-                var macString = string.Join(":",
-                    Enumerable.Range(0, 6)
-                        .Select(i => ((macAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
-                Console.WriteLine($"  Bluetooth アドレス: {macString}");
-                Console.WriteLine($"  デバイス ID: {_device.DeviceId}");
+                // MAC 表示
+                var mac = _device.BluetoothAddress;
+                var macStr = string.Join(":", Enumerable.Range(0, 6)
+                    .Select(i => ((mac >> (8 * (5 - i))) & 0xFF).ToString("x2")));
+                Console.WriteLine($"  Bluetooth アドレス: {macStr}");
 
-                // GATT サービスを取得
-                Console.WriteLine("すべての GATT サービスを確認しています...");
+                var targetUuid = Guid.Parse(ServiceUuid);
 
-                var allServicesResult = await _device.GetGattServicesAsync();
-                if (allServicesResult.Status == GattCommunicationStatus.Success)
+                // 速すぎると接続できないので、待ちを入れる
+                const int retries = 10;
+                for (int i = 0; i < retries; i++)
                 {
-                    Console.WriteLine($"見つかったサービス数: {allServicesResult.Services.Count}");
-                    var targetUuid = Guid.Parse(ServiceUuid);
-
-                    foreach (var svc in allServicesResult.Services)
+                    try
                     {
-                        Console.WriteLine($"  - UUID: {svc.Uuid}");
-                        if (svc.Uuid == targetUuid)
+                        var res = await _device.GetGattServicesForUuidAsync(targetUuid);
+                        if (res.Status == GattCommunicationStatus.Success && res.Services?.Count > 0)
                         {
-                            _service = svc;
-                            Console.WriteLine($"    - 目的のサービスを発見しました");
-                        }
-                        else
-                        {
-                            // 使用しないサービスは即座に破棄
-                            svc.Dispose();
+                            _service = res.Services[0];
+                            break;
                         }
                     }
-                }
-                else
-                {
-                    Console.WriteLine($"サービスの列挙に失敗しました: {allServicesResult.Status}");
+                    catch (System.Runtime.InteropServices.COMException)
+                    //catch (System.Runtime.InteropServices.COMException ex)
+                    {
+                        // 0x80070016 を含むタイミング系は待って再試行
+                        //Console.WriteLine($"  Cached 取得例外(HRESULT=0x{ex.HResult:X8}) try {i + 1}/{retries}");
+                    }
+                    await Task.Delay(10); // 短いクールダウン
                 }
 
                 if (_service == null)
@@ -180,7 +225,7 @@ namespace Hondarersoft.Bleio
                 if (writeCharResult.Status == GattCommunicationStatus.Success && writeCharResult.Characteristics.Count > 0)
                 {
                     _writeCharacteristic = writeCharResult.Characteristics[0];
-                    Console.WriteLine("書き込み用キャラクタリスティックを取得しました");
+                    //Console.WriteLine("書き込み用キャラクタリスティックを取得しました");
                 }
                 else
                 {
@@ -196,7 +241,7 @@ namespace Hondarersoft.Bleio
                 if (readCharResult.Status == GattCommunicationStatus.Success && readCharResult.Characteristics.Count > 0)
                 {
                     _readCharacteristic = readCharResult.Characteristics[0];
-                    Console.WriteLine("読み取り用キャラクタリスティックを取得しました");
+                    //Console.WriteLine("読み取り用キャラクタリスティックを取得しました");
                 }
                 else
                 {
@@ -212,7 +257,13 @@ namespace Hondarersoft.Bleio
                 if (adcReadCharResult.Status == GattCommunicationStatus.Success && adcReadCharResult.Characteristics.Count > 0)
                 {
                     _adcReadCharacteristic = adcReadCharResult.Characteristics[0];
-                    Console.WriteLine("ADC 読み取り用キャラクタリスティックを取得しました");
+                    //Console.WriteLine("ADC 読み取り用キャラクタリスティックを取得しました");
+                }
+                else
+                {
+                    Console.WriteLine("ADC 読み取り用キャラクタリスティックの取得に失敗しました");
+                    CleanupResources();
+                    return false;
                 }
 
                 Console.WriteLine("GATT サービスの初期化が完了しました");
@@ -220,13 +271,11 @@ namespace Hondarersoft.Bleio
                 // 接続状態変化のイベントハンドラを登録
                 _device.ConnectionStatusChanged += OnConnectionStatusChanged;
                 _isConnected = true;
-
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"デバイス初期化エラー: {ex.Message}");
-                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
+                Console.WriteLine($"デバイス初期化エラー: {ex.ToString()}");
                 CleanupResources();
                 return false;
             }
