@@ -224,52 +224,73 @@ public class BleGpioClient : IDisposable
 
     public async Task SetPinModeAsync(byte pin, PinMode mode)
     {
-        if (_writeCharacteristic == null)
-        {
-            throw new InvalidOperationException("デバイスに接続されていません");
-        }
-
-        byte[] data = { pin, (byte)mode };
-        var writer = new DataWriter();
-        writer.WriteBytes(data);
-
-        var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
-
-        if (result == GattCommunicationStatus.Success)
-        {
-            Console.WriteLine($"GPIO{pin} のモードを {mode} に設定しました");
-        }
-        else
-        {
-            Console.WriteLine($"GPIO{pin} の設定に失敗しました");
-        }
+        await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
     }
 
-    public async Task DigitalWriteAsync(byte pin, bool value)
+    public async Task SendCommandsAsync(GpioCommand[] commands)
     {
         if (_writeCharacteristic == null)
         {
             throw new InvalidOperationException("デバイスに接続されていません");
         }
 
-        byte command = value ? (byte)11 : (byte)10;
-        byte[] data = { pin, command };
+        if (commands.Length == 0 || commands.Length > 61)
+        {
+            throw new ArgumentException("コマンド数は 1-61 の範囲で指定してください");
+        }
+
         var writer = new DataWriter();
-        writer.WriteBytes(data);
+
+        // コマンド個数を書き込む
+        writer.WriteByte((byte)commands.Length);
+
+        // 各コマンドを書き込む (ピン番号、コマンド、パラメータ1、パラメータ2)
+        foreach (var cmd in commands)
+        {
+            writer.WriteByte(cmd.Pin);
+            writer.WriteByte(cmd.Command);
+            writer.WriteByte(cmd.Param1);
+            writer.WriteByte(cmd.Param2);
+        }
 
         var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
 
         if (result == GattCommunicationStatus.Success)
         {
-            Console.WriteLine($"GPIO{pin} を {(value ? "HIGH" : "LOW")} に設定しました");
+            Console.WriteLine($"{commands.Length} 個のコマンドを送信しました");
+            foreach (var cmd in commands)
+            {
+                Console.WriteLine($"    {cmd.Pin}, {cmd.Command}, {cmd.Param1}, {cmd.Param2}");
+            }
         }
         else
         {
-            Console.WriteLine($"GPIO{pin} の書き込みに失敗しました");
+            Console.WriteLine($"コマンドの送信に失敗しました");
         }
     }
 
-    public async Task<bool> DigitalReadAsync(byte pin)
+    public async Task DigitalWriteAsync(byte pin, bool value)
+    {
+        byte command = value ? (byte)11 : (byte)10;
+        await SendCommandsAsync(new[] { new GpioCommand(pin, command, 0, 0) });
+    }
+
+    public async Task<bool?> DigitalReadAsync(byte pin)
+    {
+        var inputs = await ReadAllInputsAsync();
+        var pinData = inputs.FirstOrDefault(i => i.Pin == pin);
+
+        if (pinData.Pin == 0 && pin != 0)
+        {
+            Console.WriteLine($"GPIO{pin} は入力モードに設定されていません");
+            return null;
+        }
+
+        //Console.WriteLine($"GPIO{pin} の状態: {(pinData.State ? "HIGH" : "LOW")}");
+        return pinData.State;
+    }
+
+    public async Task<(byte Pin, bool State)[]> ReadAllInputsAsync()
     {
         if (_readCharacteristic == null)
         {
@@ -278,86 +299,52 @@ public class BleGpioClient : IDisposable
 
         try
         {
-            Console.WriteLine($"GPIO{pin} の読み取りを開始します...");
+            Console.WriteLine("すべての入力ピンの状態を読み取ります...");
 
-            // 読み取りたいピン番号を書き込む
-            byte[] data = { pin };
-            var writer = new DataWriter();
-            writer.WriteBytes(data);
+            var readResult = await _readCharacteristic.ReadValueAsync(BluetoothCacheMode.Uncached);
 
-            Console.WriteLine($"  ピン番号 {pin} を書き込んでいます...");
-            var writeResult = await _readCharacteristic.WriteValueAsync(writer.DetachBuffer());
-            Console.WriteLine($"  書き込み結果: {writeResult}");
-
-            if (writeResult != GattCommunicationStatus.Success)
+            if (readResult.Status != GattCommunicationStatus.Success)
             {
-                Console.WriteLine($"GPIO{pin} への書き込みに失敗しました: {writeResult}");
-                return false;
+                Console.WriteLine($"読み取りに失敗しました: {readResult.Status}");
+                return Array.Empty<(byte, bool)>();
             }
 
-            // データが準備されるまで待機しながら読み取り (最大 3 秒)
-            Console.WriteLine($"  データを読み取っています...");
-            const int maxRetries = 30;
-            const int delayMs = 100;
+            var reader = DataReader.FromBuffer(readResult.Value);
+            byte[] response = new byte[reader.UnconsumedBufferLength];
+            reader.ReadBytes(response);
 
-            for (int retry = 0; retry < maxRetries; retry++)
+            if (response.Length < 1)
             {
-                if (retry > 0)
-                {
-                    await Task.Delay(delayMs);
-                }
-
-                var readResult = await _readCharacteristic.ReadValueAsync(BluetoothCacheMode.Uncached);
-
-                if (readResult.Status == GattCommunicationStatus.Success)
-                {
-                    var reader = DataReader.FromBuffer(readResult.Value);
-                    byte[] response = new byte[reader.UnconsumedBufferLength];
-                    //byte[] response = new byte[2];
-                    reader.ReadBytes(response);
-
-                    if (retry == 0 || response.Length > 0)
-                    {
-                        Console.WriteLine($"  読み取り試行 {retry + 1}: 受信データ長 {response.Length} バイト");
-                    }
-
-                    if (response.Length > 0)
-                    {
-                        Console.Write($"  受信データ: ");
-                        foreach (var b in response)
-                        {
-                            Console.Write($"0x{b:X2} ");
-                        }
-                        Console.WriteLine();
-                    }
-
-                    if (response.Length >= 2)
-                    {
-                        bool state = response[1] != 0;
-                        Console.WriteLine($"GPIO{pin} の状態: {(state ? "HIGH" : "LOW")} (ピン={response[0]}, 値={response[1]})");
-                        return state;
-                    }
-                    else if (response.Length > 0)
-                    {
-                        Console.WriteLine($"  データ不足 (期待: 2バイト, 実際: {response.Length}バイト), 再試行します...");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"  読み取り試行 {retry + 1}: 通信エラー: {readResult.Status}");
-                }
+                Console.WriteLine("データが空です");
+                return Array.Empty<(byte, bool)>();
             }
 
-            Console.WriteLine($"タイムアウト: {maxRetries * delayMs / 1000.0} 秒待機しましたがデータが揃いませんでした");
+            byte count = response[0];
+            int expectedLen = 1 + count * 2;
 
-            Console.WriteLine($"GPIO{pin} の読み取りに失敗しました");
-            return false;
+            if (response.Length != expectedLen)
+            {
+                Console.WriteLine($"データ長が不正です (期待: {expectedLen}, 実際: {response.Length})");
+                return Array.Empty<(byte, bool)>();
+            }
+
+            var inputs = new (byte Pin, bool State)[count];
+            for (int i = 0; i < count; i++)
+            {
+                byte pin = response[1 + i * 2];
+                bool state = response[1 + i * 2 + 1] != 0;
+                inputs[i] = (pin, state);
+                Console.WriteLine($"    GPIO{pin}: {(state ? "HIGH" : "LOW")}");
+            }
+
+            Console.WriteLine($"{count} 個の入力ピンの状態を取得しました");
+            return inputs;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"GPIO{pin} の読み取り中に例外が発生しました: {ex.Message}");
+            Console.WriteLine($"読み取り中に例外が発生しました: {ex.Message}");
             Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-            return false;
+            return Array.Empty<(byte, bool)>();
         }
     }
 
@@ -368,9 +355,10 @@ public class BleGpioClient : IDisposable
 
     public enum PinMode : byte
     {
-        Input = 0,
-        Output = 1,
-        InputPullup = 2
+        Output = 0,
+        InputFloating = 1,
+        InputPullup = 2,
+        InputPulldown = 3
     }
 
     public enum BlinkMode : byte
@@ -381,25 +369,8 @@ public class BleGpioClient : IDisposable
 
     public async Task StartBlinkAsync(byte pin, BlinkMode mode)
     {
-        if (_writeCharacteristic == null)
-        {
-            throw new InvalidOperationException("デバイスに接続されていません");
-        }
-
-        byte[] data = { pin, (byte)mode };
-        var writer = new DataWriter();
-        writer.WriteBytes(data);
-
-        var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
-
-        if (result == GattCommunicationStatus.Success)
-        {
-            string period = mode == BlinkMode.Blink250ms ? "250ms" : "500ms";
-            Console.WriteLine($"GPIO{pin} の点滅を開始しました ({period} 周期)");
-        }
-        else
-        {
-            Console.WriteLine($"GPIO{pin} の点滅開始に失敗しました");
-        }
+        await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
     }
+
+    public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
 }
