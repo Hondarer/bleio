@@ -141,6 +141,18 @@ GPIO ピンを自動的に点滅させます。
 
 - `mode`: 点滅周期 (Blink500ms, Blink250ms)
 
+**PWM 出力**
+
+```csharp
+public async Task SetPwmAsync(byte pin, double dutyCycle, PwmFrequency frequency = PwmFrequency.Freq1kHz)
+```
+
+GPIO ピンを PWM 出力モードに設定します。
+
+- `pin`: GPIO ピン番号 (2-39、入力専用ピンを除く)
+- `dutyCycle`: デューティサイクル (0.0-1.0、0.0 = 0%、1.0 = 100%)
+- `frequency`: PWM 周波数プリセット (デフォルト: Freq1kHz)
+
 #### リソース管理
 
 ```csharp
@@ -187,6 +199,24 @@ public enum BlinkMode : byte
 {
     Blink500ms = 12,    // 500ms 周期で点滅
     Blink250ms = 13     // 250ms 周期で点滅
+}
+```
+
+#### PwmFrequency
+
+PWM 周波数プリセットを表します。
+
+```csharp
+public enum PwmFrequency : byte
+{
+    Freq1kHz = 0,      // 1 kHz (デフォルト)
+    Freq5kHz = 1,      // 5 kHz (LED 調光)
+    Freq10kHz = 2,     // 10 kHz (LED 調光、標準)
+    Freq25kHz = 3,     // 25 kHz (モーター制御)
+    Freq50Hz = 4,      // 50 Hz (サーボモーター)
+    Freq100Hz = 5,     // 100 Hz (低速制御)
+    Freq500Hz = 6,     // 500 Hz (中速制御)
+    Freq20kHz = 7      // 20 kHz (高周波、可聴域外)
 }
 ```
 
@@ -280,6 +310,26 @@ foreach (var (pin, state) in inputs)
 await client.StartBlinkAsync(2, BleioClient.BlinkMode.Blink250ms);
 
 // 点滅を停止する場合は LOW または HIGH を書き込む
+await client.DigitalWriteAsync(2, false);
+```
+
+### PWM 出力
+
+```csharp
+// GPIO2 を 50% デューティサイクル、10 kHz で PWM 出力
+await client.SetPwmAsync(2, 0.5, BleioClient.PwmFrequency.Freq10kHz);
+
+// GPIO4 を 75% デューティサイクル、デフォルト周波数 (1 kHz) で PWM 出力
+await client.SetPwmAsync(4, 0.75);
+
+// LED の明るさを段階的に変化させる
+for (double brightness = 0.0; brightness <= 1.0; brightness += 0.1)
+{
+    await client.SetPwmAsync(2, brightness, BleioClient.PwmFrequency.Freq10kHz);
+    await Task.Delay(500);
+}
+
+// PWM を停止する場合は LOW または HIGH を書き込む
 await client.DigitalWriteAsync(2, false);
 ```
 

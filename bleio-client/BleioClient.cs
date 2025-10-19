@@ -436,10 +436,42 @@ namespace Hondarersoft.Bleio
             Blink250ms = 13
         }
 
+        public enum PwmFrequency : byte
+        {
+            Freq1kHz = 0,      // 1 kHz (デフォルト)
+            Freq5kHz = 1,      // 5 kHz (LED 調光)
+            Freq10kHz = 2,     // 10 kHz (LED 調光、標準)
+            Freq25kHz = 3,     // 25 kHz (モーター制御)
+            Freq50Hz = 4,      // 50 Hz (サーボモーター)
+            Freq100Hz = 5,     // 100 Hz (低速制御)
+            Freq500Hz = 6,     // 500 Hz (中速制御)
+            Freq20kHz = 7      // 20 kHz (高周波、可聴域外)
+        }
+
         public async Task StartBlinkAsync(byte pin, BlinkMode mode)
         {
             EnsureConnected();
             await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
+        }
+
+        public async Task SetPwmAsync(byte pin, double dutyCycle, PwmFrequency frequency = PwmFrequency.Freq1kHz)
+        {
+            EnsureConnected();
+
+            // デューティサイクルの範囲チェック
+            if (dutyCycle < 0.0 || dutyCycle > 1.0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(dutyCycle),
+                    "デューティサイクルは 0.0 から 1.0 の範囲で指定してください");
+            }
+
+            // 0.0-1.0 を 0-255 に変換
+            byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
+
+            // コマンドを送信 (コマンド 20: SET_PWM)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 20, dutyCycleByte, (byte)frequency)
+            });
         }
 
         public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);

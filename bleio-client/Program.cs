@@ -43,8 +43,36 @@ class Program
                 Console.WriteLine($"GPIO34 の状態: {((bool)state ? "HIGH" : "LOW")}");
             }
 
-            // 自動点滅の開始
+            // 自動点滅
             await client.StartBlinkAsync(2, BleioClient.BlinkMode.Blink250ms);
+            await Task.Delay(3000);
+
+            // PWM で LED の明るさを制御
+            Console.WriteLine("PWM で LED の明るさを制御します...");
+
+            // 25% の明るさ
+            await client.SetPwmAsync(2, 0.25, BleioClient.PwmFrequency.Freq10kHz);
+            Console.WriteLine("明るさ 25%");
+            await Task.Delay(2000);
+
+            // 50% の明るさ
+            await client.SetPwmAsync(2, 0.5, BleioClient.PwmFrequency.Freq10kHz);
+            Console.WriteLine("明るさ 50%");
+            await Task.Delay(2000);
+
+            // 75% の明るさ
+            await client.SetPwmAsync(2, 0.75, BleioClient.PwmFrequency.Freq10kHz);
+            Console.WriteLine("明るさ 75%");
+            await Task.Delay(2000);
+
+            // 100% の明るさ
+            await client.SetPwmAsync(2, 1.0, BleioClient.PwmFrequency.Freq10kHz);
+            Console.WriteLine("明るさ 100%");
+            await Task.Delay(2000);
+
+            // PWM を停止 (LED を消灯)
+            await client.DigitalWriteAsync(2, false);
+            Console.WriteLine("PWM を停止しました");
 
             Console.WriteLine("すべての操作が完了しました");
         }
