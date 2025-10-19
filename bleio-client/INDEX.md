@@ -153,6 +153,55 @@ GPIO ピンを PWM 出力モードに設定します。
 - `dutyCycle`: デューティサイクル (0.0-1.0、0.0 = 0%、1.0 = 100%)
 - `frequency`: PWM 周波数プリセット (デフォルト: Freq1kHz)
 
+**ADC 入力の有効化**
+
+```csharp
+public async Task EnableAdcAsync(byte pin, AdcAttenuation attenuation = AdcAttenuation.Atten11dB)
+```
+
+GPIO ピンを ADC 入力モードに設定します。
+
+- `pin`: GPIO ピン番号 (ADC1 のみ: 32, 33, 34, 35, 36, 39)
+- `attenuation`: 減衰設定 (デフォルト: Atten11dB、0-3.3V 測定)
+
+**ADC 入力の無効化**
+
+```csharp
+public async Task DisableAdcAsync(byte pin)
+```
+
+GPIO ピンの ADC 入力モードを無効化します。
+
+**ADC 値の読み取り (単一ピン)**
+
+```csharp
+public async Task<(byte Pin, uint RawValue, double Voltage)?> ReadAdcAsync(byte pin)
+```
+
+指定した GPIO ピンの ADC 値を読み取ります。ピンが ADC モードに設定されていない場合は null を返します。
+
+- 戻り値: (ピン番号, RAW 値 (0-4095), 電圧 (V)) のタプル、または null
+
+**ADC 値の読み取り (全ピン)**
+
+```csharp
+public async Task<(byte Pin, uint RawValue, double Voltage)[]> ReadAllAdcAsync()
+```
+
+ADC モードに設定されているすべての GPIO ピンの値を一括で読み取ります。
+
+**ADC 値から電圧への変換**
+
+```csharp
+public static double AdcToVoltage(uint rawValue, AdcAttenuation attenuation)
+```
+
+ADC の RAW 値 (0-4095) を電圧 (V) に変換します。
+
+- `rawValue`: ADC RAW 値 (0-4095)
+- `attenuation`: 減衰設定
+- 戻り値: 電圧 (V)
+
 #### リソース管理
 
 ```csharp
@@ -217,6 +266,20 @@ public enum PwmFrequency : byte
     Freq100Hz = 5,     // 100 Hz (低速制御)
     Freq500Hz = 6,     // 500 Hz (中速制御)
     Freq20kHz = 7      // 20 kHz (高周波、可聴域外)
+}
+```
+
+#### AdcAttenuation
+
+ADC の減衰設定を表します。
+
+```csharp
+public enum AdcAttenuation : byte
+{
+    Atten0dB = 0,      // 0 dB (0-1.1V)
+    Atten2_5dB = 1,    // 2.5 dB (0-1.5V)
+    Atten6dB = 2,      // 6 dB (0-2.2V)
+    Atten11dB = 3      // 11 dB (0-3.3V、デフォルト)
 }
 ```
 
@@ -365,6 +428,36 @@ inputs = await client.ReadAllInputsAsync();
 
 // ラッチをリセットするには、同じピンに SetPinModeAsync を再度実行
 await client.SetPinModeAsync(34, BleioClient.PinMode.InputPullup, BleioClient.LatchMode.Low);
+```
+
+### ADC アナログ入力
+
+```csharp
+// GPIO32 を ADC 入力として有効化 (11dB 減衰、0-3.3V 測定可能)
+await client.EnableAdcAsync(32, BleioClient.AdcAttenuation.Atten11dB);
+
+// GPIO32 の ADC 値を読み取り
+var adcResult = await client.ReadAdcAsync(32);
+if (adcResult != null)
+{
+    var (pin, rawValue, voltage) = adcResult.Value;
+    Console.WriteLine($"GPIO{pin}: Raw={rawValue}, Voltage={voltage:F3}V");
+}
+
+// すべての ADC ピンの値を一括読み取り
+var adcValues = await client.ReadAllAdcAsync();
+foreach (var (pin, rawValue, voltage) in adcValues)
+{
+    Console.WriteLine($"GPIO{pin}: Raw={rawValue}, Voltage={voltage:F3}V");
+}
+
+// ADC を無効化
+await client.DisableAdcAsync(32);
+
+// 減衰設定による測定範囲の違い
+await client.EnableAdcAsync(32, BleioClient.AdcAttenuation.Atten0dB);   // 0-1.1V (高精度)
+await client.EnableAdcAsync(33, BleioClient.AdcAttenuation.Atten6dB);   // 0-2.2V (中範囲)
+await client.EnableAdcAsync(34, BleioClient.AdcAttenuation.Atten11dB);  // 0-3.3V (広範囲)
 ```
 
 ## 実装の特徴

@@ -31,6 +31,10 @@ class Program
                 await Task.Delay(500);
             }
 
+            // 自動点滅
+            await client.StartBlinkAsync(2, BleioClient.BlinkMode.Blink250ms);
+            await Task.Delay(3000);
+
             // GPIO34 (入力専用ピン) を読み取り
             await client.SetPinModeAsync(34, BleioClient.PinMode.InputFloating);
             bool? state = await client.DigitalReadAsync(34);
@@ -42,10 +46,6 @@ class Program
             {
                 Console.WriteLine($"GPIO34 の状態: {((bool)state ? "HIGH" : "LOW")}");
             }
-
-            // 自動点滅
-            await client.StartBlinkAsync(2, BleioClient.BlinkMode.Blink250ms);
-            await Task.Delay(3000);
 
             // PWM で LED の明るさを制御
             Console.WriteLine("PWM で LED の明るさを制御します...");
@@ -73,6 +73,30 @@ class Program
             // PWM を停止 (LED を消灯)
             await client.DigitalWriteAsync(2, false);
             Console.WriteLine("PWM を停止しました");
+
+            // ADC でアナログ電圧を読み取り
+            Console.WriteLine("ADC でアナログ電圧を読み取ります...");
+
+            // GPIO32 を ADC 入力として有効化 (11dB 減衰、0-3.3V 測定可能)
+            await client.EnableAdcAsync(32, BleioClient.AdcAttenuation.Atten11dB);
+            Console.WriteLine("GPIO32 を ADC 入力として有効化しました");
+            await Task.Delay(500);
+
+            // GPIO32 の ADC 値を読み取り
+            var adcResult = await client.ReadAdcAsync(32);
+            if (adcResult != null)
+            {
+                var (pin, rawValue, voltage) = adcResult.Value;
+                Console.WriteLine($"GPIO{pin}: Raw={rawValue}, Voltage={voltage:F3}V");
+            }
+            else
+            {
+                Console.WriteLine("GPIO32 は ADC モードに設定されていません");
+            }
+
+            // ADC を無効化
+            await client.DisableAdcAsync(32);
+            Console.WriteLine("GPIO32 の ADC を無効化しました");
 
             Console.WriteLine("すべての操作が完了しました");
         }

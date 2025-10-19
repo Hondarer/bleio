@@ -13,11 +13,13 @@ namespace Hondarersoft.Bleio
         private const string ServiceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c333914b";
         private const string CharGpioWriteUuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         private const string CharGpioReadUuid = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
+        private const string CharAdcReadUuid = "2d8a7b3c-4e9f-4a1b-8c5d-6e7f8a9b0c1d";
 
         private BluetoothLEDevice? _device;
         private GattDeviceService? _service;
         private GattCharacteristic? _writeCharacteristic;
         private GattCharacteristic? _readCharacteristic;
+        private GattCharacteristic? _adcReadCharacteristic;
         private bool _isConnected = false;
 
         public async Task<bool> ConnectAsync(string deviceName = "BLEIO")
@@ -201,6 +203,16 @@ namespace Hondarersoft.Bleio
                     Console.WriteLine("読み取り用キャラクタリスティックの取得に失敗しました");
                     CleanupResources();
                     return false;
+                }
+
+                // ADC 読み取り用キャラクタリスティックを取得
+                var adcReadCharResult = await _service.GetCharacteristicsForUuidAsync(
+                    Guid.Parse(CharAdcReadUuid));
+
+                if (adcReadCharResult.Status == GattCommunicationStatus.Success && adcReadCharResult.Characteristics.Count > 0)
+                {
+                    _adcReadCharacteristic = adcReadCharResult.Characteristics[0];
+                    Console.WriteLine("ADC 読み取り用キャラクタリスティックを取得しました");
                 }
 
                 Console.WriteLine("GATT サービスの初期化が完了しました");
@@ -448,6 +460,14 @@ namespace Hondarersoft.Bleio
             Freq20kHz = 7      // 20 kHz (高周波、可聴域外)
         }
 
+        public enum AdcAttenuation : byte
+        {
+            Atten0dB = 0,      // 0 dB (0-1.1V)
+            Atten2_5dB = 1,    // 2.5 dB (0-1.5V)
+            Atten6dB = 2,      // 6 dB (0-2.2V)
+            Atten11dB = 3      // 11 dB (0-3.3V、デフォルト)
+        }
+
         public async Task StartBlinkAsync(byte pin, BlinkMode mode)
         {
             EnsureConnected();
@@ -472,6 +492,131 @@ namespace Hondarersoft.Bleio
             await SendCommandsAsync(new[] {
                 new GpioCommand(pin, 20, dutyCycleByte, (byte)frequency)
             });
+        }
+
+        public async Task EnableAdcAsync(byte pin, AdcAttenuation attenuation = AdcAttenuation.Atten11dB)
+        {
+            EnsureConnected();
+
+            // ADC 対応ピンのチェック
+            if (pin != 32 && pin != 33 && pin != 34 && pin != 35 && pin != 36 && pin != 39)
+            {
+                throw new ArgumentException($"GPIO{pin} は ADC1 に対応していません。対応ピン: 32, 33, 34, 35, 36, 39");
+            }
+
+            // コマンドを送信 (コマンド 30: SET_ADC_ENABLE)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 30, (byte)attenuation, 0)
+            });
+        }
+
+        public async Task DisableAdcAsync(byte pin)
+        {
+            EnsureConnected();
+
+            // コマンドを送信 (コマンド 31: SET_ADC_DISABLE)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 31, 0, 0)
+            });
+        }
+
+        public async Task<(byte Pin, uint RawValue, double Voltage)?> ReadAdcAsync(byte pin)
+        {
+            EnsureConnected();
+            var adcValues = await ReadAllAdcAsync();
+            var pinData = adcValues.FirstOrDefault(a => a.Pin == pin);
+
+            if (pinData.Pin == 0 && pin != 0)
+            {
+                Console.WriteLine($"GPIO{pin} は ADC モードに設定されていません");
+                return null;
+            }
+
+            return pinData;
+        }
+
+        public async Task<(byte Pin, uint RawValue, double Voltage)[]> ReadAllAdcAsync()
+        {
+            EnsureConnected();
+
+            if (_adcReadCharacteristic == null)
+            {
+                throw new InvalidOperationException("ADC 読み取りキャラクタリスティックが利用できません");
+            }
+
+            try
+            {
+                Console.WriteLine("すべての ADC ピンの値を読み取ります...");
+
+                var readResult = await _adcReadCharacteristic.ReadValueAsync(BluetoothCacheMode.Uncached);
+
+                if (readResult.Status != GattCommunicationStatus.Success)
+                {
+                    string errorMessage = readResult.Status switch
+                    {
+                        GattCommunicationStatus.Unreachable => "デバイスに到達できません (接続が切断された可能性があります)",
+                        GattCommunicationStatus.ProtocolError => "プロトコルエラーが発生しました",
+                        GattCommunicationStatus.AccessDenied => "アクセスが拒否されました",
+                        _ => $"読み取りに失敗しました (ステータス: {readResult.Status})"
+                    };
+                    throw new InvalidOperationException(errorMessage);
+                }
+
+                var reader = DataReader.FromBuffer(readResult.Value);
+                byte[] response = new byte[reader.UnconsumedBufferLength];
+                reader.ReadBytes(response);
+
+                if (response.Length < 1)
+                {
+                    throw new InvalidOperationException("受信データが空です");
+                }
+
+                byte count = response[0];
+                int expectedLen = 1 + count * 3;
+
+                if (response.Length != expectedLen)
+                {
+                    throw new InvalidOperationException(
+                        $"受信データ長が不正です (期待: {expectedLen} バイト, 実際: {response.Length} バイト)");
+                }
+
+                var adcValues = new (byte Pin, uint RawValue, double Voltage)[count];
+                for (int i = 0; i < count; i++)
+                {
+                    byte pin = response[1 + i * 3];
+                    ushort rawValue = (ushort)(response[1 + i * 3 + 1] | (response[1 + i * 3 + 2] << 8));
+                    // デフォルトで 11 dB (12 dB) 減衰と仮定して電圧を計算
+                    double voltage = AdcToVoltage(rawValue, AdcAttenuation.Atten11dB);
+                    adcValues[i] = (pin, rawValue, voltage);
+
+                    Console.WriteLine($"    GPIO{pin}: Raw={rawValue}, Voltage={voltage:F3}V");
+                }
+
+                Console.WriteLine($"{count} 個の ADC ピンの値を取得しました");
+                return adcValues;
+            }
+            catch (InvalidOperationException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"読み取り中に予期しないエラーが発生しました: {ex.Message}", ex);
+            }
+        }
+
+        public static double AdcToVoltage(ushort adcValue, AdcAttenuation attenuation)
+        {
+            double maxVoltage = attenuation switch
+            {
+                AdcAttenuation.Atten0dB => 1.1,
+                AdcAttenuation.Atten2_5dB => 1.5,
+                AdcAttenuation.Atten6dB => 2.2,
+                AdcAttenuation.Atten11dB => 3.3,
+                _ => 3.3
+            };
+
+            return (adcValue / 4095.0) * maxVoltage;
         }
 
         public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
