@@ -18,6 +18,7 @@ namespace Hondarersoft.Bleio
         private GattDeviceService? _service;
         private GattCharacteristic? _writeCharacteristic;
         private GattCharacteristic? _readCharacteristic;
+        private bool _isConnected = false;
 
         public async Task<bool> ConnectAsync(string deviceName = "BLEIO")
         {
@@ -199,6 +200,11 @@ namespace Hondarersoft.Bleio
                 }
 
                 Console.WriteLine("GATT サービスの初期化が完了しました");
+
+                // 接続状態変化のイベントハンドラを登録
+                _device.ConnectionStatusChanged += OnConnectionStatusChanged;
+                _isConnected = true;
+
                 return true;
             }
             catch (Exception ex)
@@ -210,6 +216,20 @@ namespace Hondarersoft.Bleio
             }
         }
 
+        private void OnConnectionStatusChanged(BluetoothLEDevice sender, object args)
+        {
+            if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected)
+            {
+                Console.WriteLine($"デバイスとの接続が切断されました: {sender.Name}");
+                _isConnected = false;
+            }
+            else if (sender.ConnectionStatus == BluetoothConnectionStatus.Connected)
+            {
+                Console.WriteLine($"デバイスに再接続しました: {sender.Name}");
+                _isConnected = true;
+            }
+        }
+
         private void CleanupResources()
         {
             _writeCharacteristic = null;
@@ -218,19 +238,36 @@ namespace Hondarersoft.Bleio
             _service?.Dispose();
             _service = null;
 
-            _device?.Dispose();
-            _device = null;
+            if (_device != null)
+            {
+                _device.ConnectionStatusChanged -= OnConnectionStatusChanged;
+                _device.Dispose();
+                _device = null;
+            }
+
+            _isConnected = false;
 
             Console.WriteLine("リソースをクリーンアップしました");
         }
 
-        public async Task SetPinModeAsync(byte pin, PinMode mode)
+        private void EnsureConnected()
         {
-            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
+            if (!_isConnected)
+            {
+                throw new InvalidOperationException("デバイスとの接続が切断されています。再接続してください。");
+            }
+        }
+
+        public async Task SetPinModeAsync(byte pin, PinMode mode, LatchMode latchMode = LatchMode.None)
+        {
+            EnsureConnected();
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, (byte)latchMode, 0) });
         }
 
         public async Task SendCommandsAsync(GpioCommand[] commands)
         {
+            EnsureConnected();
+
             if (_writeCharacteristic == null)
             {
                 throw new InvalidOperationException("デバイスに接続されていません");
@@ -267,18 +304,27 @@ namespace Hondarersoft.Bleio
             }
             else
             {
-                Console.WriteLine($"コマンドの送信に失敗しました");
+                string errorMessage = result switch
+                {
+                    GattCommunicationStatus.Unreachable => "デバイスに到達できません (接続が切断された可能性があります)",
+                    GattCommunicationStatus.ProtocolError => "プロトコルエラーが発生しました",
+                    GattCommunicationStatus.AccessDenied => "アクセスが拒否されました",
+                    _ => $"コマンドの送信に失敗しました (ステータス: {result})"
+                };
+                throw new InvalidOperationException(errorMessage);
             }
         }
 
         public async Task DigitalWriteAsync(byte pin, bool value)
         {
+            EnsureConnected();
             byte command = value ? (byte)11 : (byte)10;
             await SendCommandsAsync(new[] { new GpioCommand(pin, command, 0, 0) });
         }
 
         public async Task<bool?> DigitalReadAsync(byte pin)
         {
+            EnsureConnected();
             var inputs = await ReadAllInputsAsync();
             var pinData = inputs.FirstOrDefault(i => i.Pin == pin);
 
@@ -293,6 +339,8 @@ namespace Hondarersoft.Bleio
 
         public async Task<(byte Pin, bool State)[]> ReadAllInputsAsync()
         {
+            EnsureConnected();
+
             if (_readCharacteristic == null)
             {
                 throw new InvalidOperationException("デバイスに接続されていません");
@@ -306,8 +354,14 @@ namespace Hondarersoft.Bleio
 
                 if (readResult.Status != GattCommunicationStatus.Success)
                 {
-                    Console.WriteLine($"読み取りに失敗しました: {readResult.Status}");
-                    return Array.Empty<(byte, bool)>();
+                    string errorMessage = readResult.Status switch
+                    {
+                        GattCommunicationStatus.Unreachable => "デバイスに到達できません (接続が切断された可能性があります)",
+                        GattCommunicationStatus.ProtocolError => "プロトコルエラーが発生しました",
+                        GattCommunicationStatus.AccessDenied => "アクセスが拒否されました",
+                        _ => $"読み取りに失敗しました (ステータス: {readResult.Status})"
+                    };
+                    throw new InvalidOperationException(errorMessage);
                 }
 
                 var reader = DataReader.FromBuffer(readResult.Value);
@@ -316,8 +370,7 @@ namespace Hondarersoft.Bleio
 
                 if (response.Length < 1)
                 {
-                    Console.WriteLine("データが空です");
-                    return Array.Empty<(byte, bool)>();
+                    throw new InvalidOperationException("受信データが空です");
                 }
 
                 byte count = response[0];
@@ -325,8 +378,8 @@ namespace Hondarersoft.Bleio
 
                 if (response.Length != expectedLen)
                 {
-                    Console.WriteLine($"データ長が不正です (期待: {expectedLen}, 実際: {response.Length})");
-                    return Array.Empty<(byte, bool)>();
+                    throw new InvalidOperationException(
+                        $"受信データ長が不正です (期待: {expectedLen} バイト, 実際: {response.Length} バイト)");
                 }
 
                 var inputs = new (byte Pin, bool State)[count];
@@ -341,11 +394,15 @@ namespace Hondarersoft.Bleio
                 Console.WriteLine($"{count} 個の入力ピンの状態を取得しました");
                 return inputs;
             }
+            catch (InvalidOperationException)
+            {
+                // 既に適切なエラーメッセージを持つ例外なので、そのまま再スロー
+                throw;
+            }
             catch (Exception ex)
             {
-                Console.WriteLine($"読み取り中に例外が発生しました: {ex.Message}");
-                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-                return Array.Empty<(byte, bool)>();
+                // その他の予期しない例外
+                throw new InvalidOperationException($"読み取り中に予期しないエラーが発生しました: {ex.Message}", ex);
             }
         }
 
@@ -362,6 +419,13 @@ namespace Hondarersoft.Bleio
             InputPulldown = 3
         }
 
+        public enum LatchMode : byte
+        {
+            None = 0,
+            Low = 1,
+            High = 2
+        }
+
         public enum BlinkMode : byte
         {
             Blink500ms = 12,
@@ -370,6 +434,7 @@ namespace Hondarersoft.Bleio
 
         public async Task StartBlinkAsync(byte pin, BlinkMode mode)
         {
+            EnsureConnected();
             await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
         }
 
