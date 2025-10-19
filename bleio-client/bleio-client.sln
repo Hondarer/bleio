@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "client", "client.csproj", "{AE7EEA74-2FE0-136F-D797-854FD87E022A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bleio-client", "bleio-client.csproj", "{AE7EEA74-2FE0-136F-D797-854FD87E022A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

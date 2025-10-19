@@ -1,0 +1,3 @@
+[submodule "bleio-server"]
+	path = bleio-server
+	url = https://github.com/Hondarer/bleio-server.git

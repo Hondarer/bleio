@@ -4,31 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト構造
 
-espio は ESP32 ベースのリモート I/O です。
+bleio は ESP32 ベースのリモート I/O です。
 
 ### ディレクトリ構成
 
 ```text
-espio/
-├── server/                ESP32 ファームウェアプロジェクト (サブモジュール)
-│   ├── src/               ソースコード (main.c)
-│   ├── include/           ヘッダファイル
-│   ├── lib/               ライブラリ
-│   ├── test/              テストコード
-│   ├── platformio.ini     PlatformIO 設定ファイル
-│   ├── CMakeLists.txt     ESP-IDF ビルド設定
-│   ├── LICENSE            サーバーコードのライセンス
-│   └── README.md          サーバーコードの説明
-├── client/                C# BLE クライアントプロジェクト
-│   ├── Program.cs         メインプログラム
-│   ├── BleGpioClient.cs   BLE GPIO クライアントクラス
-│   ├── client.csproj      プロジェクトファイル
-│   └── espio.sln          ソリューションファイル
-├── docs-src/              ドキュメントソース
-│   └── get_started.md     開発環境セットアップガイド
-├── CLAUDE.md              プロジェクト仕様書
-├── README.md              プロジェクト概要
-└── LICENSE                プロジェクトライセンス (MIT)
+bleio/
+├── bleio-server/            ESP32 ファームウェアプロジェクト (サブモジュール)
+│   ├── src/                ソースコード (main.c)
+│   ├── include/            ヘッダファイル
+│   ├── lib/                ライブラリ
+│   ├── test/               テストコード
+│   ├── platformio.ini      PlatformIO 設定ファイル
+│   ├── CMakeLists.txt      ESP-IDF ビルド設定
+│   ├── LICENSE             サーバーコードのライセンス
+│   └── README.md           サーバーコードの説明
+├── bleio-client/            C# BLE クライアントプロジェクト
+│   ├── Program.cs          メインプログラム
+│   ├── BleGpioClient.cs    BLE GPIO クライアントクラス
+│   ├── bleio-client.csproj プロジェクトファイル
+│   └── bleio-client.sln    ソリューションファイル
+├── docs-src/                ドキュメントソース
+│   └── get_started.md      開発環境セットアップガイド
+├── CLAUDE.md                プロジェクト仕様書
+├── README.md                プロジェクト概要
+└── LICENSE                  プロジェクトライセンス (MIT)
 ```
 
 ### 開発環境
@@ -50,28 +50,28 @@ VS Code + PlatformIO IDE 拡張機能を推奨します。詳細は `docs-src/ge
 **サーバー (ESP32)**
 
 ```bash
-cd server
+cd bleio-server
 pio run
 ```
 
 **ESP32 への書き込み**
 
 ```bash
-cd server
+cd bleio-server
 pio run --target upload
 ```
 
 **シリアルモニター**
 
 ```bash
-cd server
+cd bleio-server
 pio device monitor
 ```
 
 **クライアント (C#)**
 
 ```bash
-cd client
+cd bleio-client
 dotnet build
 dotnet run
 ```

@@ -159,6 +159,10 @@ namespace Hondarersoft.Bleio
                         }
                     }
                 }
+                else
+                {
+                    Console.WriteLine($"サービスの列挙に失敗しました: {allServicesResult.Status}");
+                }
 
                 if (_service == null)
                 {
