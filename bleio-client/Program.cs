@@ -19,9 +19,6 @@ class Program
                 return;
             }
 
-            // GPIO2 (LED) を出力モードに設定
-            await client.SetPinModeAsync(2, BleioClient.PinMode.Output);
-
             // LED を点滅
             for (int i = 0; i < 5; i++)
             {
@@ -97,6 +94,20 @@ class Program
             // ADC を無効化
             await client.DisableAdcAsync(32);
             Console.WriteLine("GPIO32 の ADC を無効化しました");
+
+            // BLE 切断時の振る舞いを設定
+            Console.WriteLine("BLE 切断時の振る舞いを設定します...");
+
+            // GPIO2 を切断時に LOW にする設定
+            await client.SetOutputOnDisconnectAsync(2, BleioClient.DisconnectBehavior.SetLow);
+            Console.WriteLine("GPIO2 を切断時に LOW に設定する振る舞いを設定しました");
+
+            // LED を点灯
+            await client.DigitalWriteAsync(2, true);
+            Console.WriteLine("GPIO2 を HIGH に設定しました (LED 点灯)");
+            await Task.Delay(2000);
+
+            Console.WriteLine("BLE 接続を切断すると、GPIO2 は自動的に LOW になります");
         }
         catch (InvalidOperationException ex)
         {

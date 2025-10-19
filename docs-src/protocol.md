@@ -51,44 +51,47 @@ WRITE
 |----------|------|-----|------|
 | 0 | Pin Number | uint8 | GPIO ピン番号 (2-39) |
 | 1 | Command | uint8 | 実行するコマンド |
-| 2 | Param1 | uint8 | パラメータ1 (入力コマンドではラッチモード、その他は 0x00) |
-| 3 | Param2 | uint8 | パラメータ2 (将来用、現在は 0x00) |
+| 2 | Param1 | uint8 | パラメータ1 |
+| 3 | Param2 | uint8 | パラメータ2 |
 
 **コマンド一覧**
 
 | コマンド値 | 名称 | 説明 |
 |----------|------|------|
-| 0 | SET_OUTPUT | ピンを出力モードに設定する (※1) |
-| 1 | SET_INPUT_FLOATING | ピンをハイインピーダンス入力モードに設定する |
-| 2 | SET_INPUT_PULLUP | ピンを内部プルアップ付き入力モードに設定する |
-| 3 | SET_INPUT_PULLDOWN | ピンを内部プルダウン付き入力モードに設定する |
-| 10 | WRITE_LOW | ピンの出力を LOW (0V) に設定する (自動的に出力モードに設定される)|
-| 11 | WRITE_HIGH | ピンの出力を HIGH (3.3V) に設定する (自動的に出力モードに設定される)|
-| 12 | BLINK_500MS | ピンを 500ms 周期で点滅させる (自動的に出力モードに設定される)|
-| 13 | BLINK_250MS | ピンを 250ms 周期で点滅させる (自動的に出力モードに設定される)|
-| 20 | SET_PWM | ピンを PWM 出力モードに設定する (Param1: デューティサイクル、Param2: 周波数プリセット)|
-| 30 | SET_ADC_ENABLE | ピンを ADC 入力モードに設定する (Param1: 減衰設定、Param2: 将来用)|
-| 31 | SET_ADC_DISABLE | ピンの ADC 入力モードを無効化する (Param1, Param2: 未使用)|
+| 1 | SET_OUTPUT_LOW | ピンの出力を LOW (0V) に設定する|
+| 2 | SET_OUTPUT_HIGH | ピンの出力を HIGH (3.3V) に設定する|
+| 3 | SET_OUTPUT_BLINK_250MS | ピンを 250ms 周期で点滅させる|
+| 4 | SET_OUTPUT_BLINK_500MS | ピンを 500ms 周期で点滅させる|
+| 5 | SET_OUTPUT_PWM | ピンを PWM 出力モードに設定する (Param1: デューティサイクル、Param2: 周波数プリセット)|
+| 9 | SET_OUTPUT_ON_DISCONNECT | BLE 切断時のピンの振る舞いを設定する (Param1: 切断時の動作、Param2: 未使用)|
+| 11 | SET_INPUT_FLOATING | ピンをハイインピーダンス入力モードに設定する |
+| 12 | SET_INPUT_PULLUP | ピンを内部プルアップ付き入力モードに設定する |
+| 13 | SET_INPUT_PULLDOWN | ピンを内部プルダウン付き入力モードに設定する |
+| 21 | SET_ADC_ENABLE | ピンを ADC 入力モードに設定する (Param1: 減衰設定、Param2: 将来用)|
+| 22 | SET_ADC_DISABLE | ピンの ADC 入力モードを無効化する (Param1, Param2: 未使用)|
 
-※1 SET_OUTPUT コマンドは、直前の状態が WRITE_HIGH (コマンド 11) の場合のみ HIGH を維持し、それ以外の場合は LOW に設定されます。これにより、電源投入後に一度もコマンドが実行されていない状態 (UNSET) と、明示的に設定された状態を区別できます。
+**注記**
+
+出力モードに設定するには、SET_OUTPUT_LOW (1)、SET_OUTPUT_HIGH (2)、SET_OUTPUT_BLINK_250MS (3)、SET_OUTPUT_BLINK_500MS (4)、または SET_OUTPUT_PWM (5) のいずれかを使用してください。
 
 **使用例**
 
 単一コマンドの場合
 
-- GPIO2 を出力モードに設定する場合は `[0x01, 0x02, 0x00, 0x00, 0x00]` を送信します
+- GPIO2 を HIGH にする場合は `[0x01, 0x02, 0x02, 0x00, 0x00]` を送信します
   - 0x01: コマンド個数 (1個)
   - 0x02: ピン番号 (GPIO2)
-  - 0x00: コマンド (SET_OUTPUT)
+  - 0x02: コマンド (SET_OUTPUT_HIGH = 2)
   - 0x00, 0x00: パラメータ (未使用)
-- GPIO2 を HIGH にする場合は `[0x01, 0x02, 0x0B, 0x00, 0x00]` を送信します
+- GPIO2 を LOW にする場合は `[0x01, 0x02, 0x01, 0x00, 0x00]` を送信します
+  - 0x01: コマンド (SET_OUTPUT_LOW = 1)
 
 複数コマンドの一括送信
 
-- GPIO2 を出力モードに設定し、GPIO4 を HIGH にする場合は `[0x02, 0x02, 0x00, 0x00, 0x00, 0x04, 0x0B, 0x00, 0x00]` を送信します
+- GPIO2 を HIGH にし、GPIO4 を LOW にする場合は `[0x02, 0x02, 0x02, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00]` を送信します
   - 0x02: コマンド個数 (2個)
-  - 0x02, 0x00, 0x00, 0x00: GPIO2 を出力モードに設定
-  - 0x04, 0x0B, 0x00, 0x00: GPIO4 を HIGH に設定
+  - 0x02, 0x02, 0x00, 0x00: GPIO2 を HIGH に設定 (ピン 2、コマンド 2)
+  - 0x04, 0x01, 0x00, 0x00: GPIO4 を LOW に設定 (ピン 4、コマンド 1)
 
 ### GPIO 読み取りキャラクタリスティック
 
@@ -187,12 +190,12 @@ GPIO34, GPIO35, GPIO36, GPIO39
 GPIO34 を内部プルアップ付き入力モードに設定し、LOW エッジをラッチする場合
 
 ```text
-[0x01, 0x22, 0x02, 0x01, 0x00]
+[0x01, 0x22, 0x0C, 0x01, 0x00]
 ```
 
 - 0x01: コマンド個数 (1個)
 - 0x22: ピン番号 (GPIO34 = 0x22 = 34)
-- 0x02: コマンド (SET_INPUT_PULLUP)
+- 0x0C: コマンド (SET_INPUT_PULLUP = 12 = 0x0C)
 - 0x01: Param1 (LATCH_MODE_LOW)
 - 0x00: Param2 (未使用)
 
@@ -229,7 +232,7 @@ bleio-server は、起動時に GPIO の初期化を行いません。すべて�
 
 **推奨事項**
 
-GPIO の状態に依存する動作を行う前に、必ず SET_OUTPUT、SET_INPUT_FLOATING、SET_INPUT_PULLUP、または SET_INPUT_PULLDOWN コマンドでモードを明示的に設定してください。デフォルト状態は、ブートローダーやアプリケーションの起動コードによって変更される可能性があります。
+GPIO の状態に依存する動作を行う前に、必ずモードを明示的に設定してください。入力モードの場合は SET_INPUT_FLOATING、SET_INPUT_PULLUP、または SET_INPUT_PULLDOWN を使用し、出力モードの場合は SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK、または SET_OUTPUT_PWM コマンドを使用してください。デフォルト状態は、ブートローダーやアプリケーションの起動コードによって変更される可能性があります。
 
 ### 使用を避けるべきピン
 
@@ -282,7 +285,7 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 | PWM | PWM 出力モード |
 | ADC | ADC 入力モード (アナログ電圧読み取り) |
 
-この状態管理により、SET_OUTPUT コマンドは直前の状態が OUTPUT_HIGH の場合のみ HIGH を維持し、それ以外は LOW に設定されます。
+出力モードに設定するには、SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK_250MS、SET_OUTPUT_BLINK_500MS、または SET_OUTPUT_PWM コマンドを使用します。
 
 ## 通信シーケンス例
 
@@ -301,13 +304,10 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
     PC -> ESP32: GATT サービス検索
     ESP32 -> PC: サービス情報を返す
 
-    PC -> ESP32: Write [0x02, 0x00]\n(GPIO2 を OUTPUT に設定)
-    note right: GPIO2 は基板上の LED
+    PC -> ESP32: Write [0x01, 0x02, 0x02, 0x00, 0x00]\n(GPIO2 を HIGH に設定)
+    note right: GPIO2 は基板上の LED\nLED が点灯
 
-    PC -> ESP32: Write [0x02, 0x0B]\n(GPIO2 を HIGH に設定)
-    note right: LED が点灯
-
-    PC -> ESP32: Write [0x02, 0x0A]\n(GPIO2 を LOW に設定)
+    PC -> ESP32: Write [0x01, 0x02, 0x01, 0x00, 0x00]\n(GPIO2 を LOW に設定)
     note right: LED が消灯
 @enduml
 ```
@@ -323,17 +323,17 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 
     PC -> ESP32: BLE 接続済み
 
-    PC -> ESP32: Write [0x02, 0x0C]\n(GPIO2 を 500ms 点滅に設定)
+    PC -> ESP32: Write [0x01, 0x02, 0x04, 0x00, 0x00]\n(GPIO2 を 500ms 点滅に設定)
     note right: GPIO2 が自動的に点滅開始
 
     note over ESP32: タイマ割り込みで自動点滅\n(500ms ごとに HIGH/LOW 切り替え)
 
-    PC -> ESP32: Write [0x02, 0x0D]\n(GPIO2 を 250ms 点滅に変更)
+    PC -> ESP32: Write [0x01, 0x02, 0x03, 0x00, 0x00]\n(GPIO2 を 250ms 点滅に変更)
     note right: 点滅周期が 250ms に変更
 
     note over ESP32: タイマ割り込みで自動点滅\n(250ms ごとに HIGH/LOW 切り替え)
 
-    PC -> ESP32: Write [0x02, 0x0A]\n(GPIO2 を LOW に設定)
+    PC -> ESP32: Write [0x01, 0x02, 0x01, 0x00, 0x00]\n(GPIO2 を LOW に設定)
     note right: 点滅停止、LOW で固定
 @enduml
 ```
@@ -349,7 +349,7 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 
     PC -> ESP32: BLE 接続済み
 
-    PC -> ESP32: Write [0x01, 0x22, 0x02, 0x00, 0x00]\n(GPIO34 を INPUT_PULLUP に設定)
+    PC -> ESP32: Write [0x01, 0x22, 0x0C, 0x00, 0x00]\n(GPIO34 を INPUT_PULLUP に設定)
     note right: GPIO34 にボタンを接続
 
     PC -> ESP32: Read from Read Char
@@ -373,8 +373,8 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 
     PC -> ESP32: BLE 接続済み
 
-    PC -> ESP32: Write [0x03, 0x22, 0x02, 0x00, 0x00,\n0x23, 0x01, 0x00, 0x00, 0x21, 0x02, 0x00, 0x00]
-    note right: GPIO34 を INPUT_PULLUP\nGPIO35 を INPUT_FLOATING\nGPIO33 を INPUT_PULLUP に設定
+    PC -> ESP32: Write [0x03, 0x22, 0x0C, 0x00, 0x00,\n0x23, 0x0B, 0x00, 0x00, 0x21, 0x0C, 0x00, 0x00]
+    note right: GPIO34 を INPUT_PULLUP (12)\nGPIO35 を INPUT_FLOATING (11)\nGPIO33 を INPUT_PULLUP (12) に設定
 
     PC -> ESP32: Read from Read Char
     ESP32 -> PC: [0x03, 0x22, 0x01, 0x23, 0x00, 0x21, 0x01]
@@ -452,7 +452,7 @@ GPIO2, GPIO4, GPIO5, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPI
 
 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません。
 
-**コマンド 20: SET_PWM**
+**コマンド 5: SET_OUTPUT_PWM**
 
 GPIO を PWM 出力モードに設定し、デューティサイクルと周波数を指定します。
 
@@ -493,12 +493,12 @@ PWM の周波数をプリセット値で指定します。
 GPIO2 を 50% デューティサイクル、10 kHz で PWM 出力する場合
 
 ```text
-[0x01, 0x02, 0x14, 0x80, 0x02]
+[0x01, 0x02, 0x05, 0x80, 0x02]
 ```
 
 - 0x01: コマンド個数 (1 個)
 - 0x02: ピン番号 (GPIO2)
-- 0x14: コマンド (SET_PWM = 20 = 0x14)
+- 0x05: コマンド (SET_OUTPUT_PWM = 5)
 - 0x80: Param1 (デューティサイクル = 128 = 0x80 = 50%)
 - 0x02: Param2 (周波数プリセット = 2 = 10 kHz)
 
@@ -508,12 +508,91 @@ GPIO2 を 50% デューティサイクル、10 kHz で PWM 出力する場合
 - すべての PWM 出力が同じ周波数を共有します (単一タイマー使用のため)
 - デューティサイクルの分解能は 8 ビット (256 段階、0.39% 刻み) です
 - 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません
-- PWM を停止するには、WRITE_LOW (コマンド 10) または WRITE_HIGH (コマンド 11) を送信します
+- PWM を停止するには、SET_OUTPUT_LOW (コマンド 1) または SET_OUTPUT_HIGH (コマンド 2) を送信します
 - 9 個目の GPIO に PWM を設定しようとすると、サーバー側でエラーメッセージが出力され、コマンドは無視されます
 
 **PWM 停止**
 
-他のコマンド (WRITE_LOW、WRITE_HIGH、BLINK_250MS、BLINK_500MS など) を受信すると、PWM は自動的に停止します。
+他のコマンド (SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK_250MS、SET_OUTPUT_BLINK_500MS など) を受信すると、PWM は自動的に停止します。
+
+### BLE 切断時の振る舞い設定
+
+BLE 接続が切断された際、出力ピンの状態を制御する設定を行います。
+
+**概要**
+
+通常、BLE 接続が切断されても出力ピンの状態は維持されます。しかし、安全上の理由や動作要件から、切断時に特定の状態 (LOW または HIGH) に自動設定したい場合があります。
+
+SET_OUTPUT_ON_DISCONNECT コマンドを使うと、各 GPIO ピンごとに、BLE 切断時の振る舞いを設定できます。
+
+**コマンド 9: SET_OUTPUT_ON_DISCONNECT**
+
+GPIO の BLE 切断時の振る舞いを設定します。
+
+**パラメータ**
+
+| パラメータ | 型 | 説明 |
+|----------|-----|------|
+| Param1 | uint8 | 切断時の振る舞い (0-2) |
+| Param2 | uint8 | 予約 (将来用、現在は 0x00) |
+
+**Param1: 切断時の振る舞い**
+
+BLE 接続が切断された際の GPIO の動作を設定します。
+
+| Param1 値 | 動作 | 説明 |
+|----------|------|------|
+| 0 | 維持 | 状態を維持する (デフォルト) |
+| 1 | LOW に設定 | 切断時に LOW (0V) に設定する |
+| 2 | HIGH に設定 | 切断時に HIGH (3.3V) に設定する |
+
+**設定と動作**
+
+このコマンドは、ピンのモードに関係なく、いつでも送信できます。設定は各 GPIO ピンごとに保持されます。
+
+BLE 切断時に、ピンが出力モード (SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK_250MS、SET_OUTPUT_BLINK_500MS、SET_OUTPUT_PWM) の場合、設定された振る舞いが適用されます。
+
+入力モードやその他のモードの場合は、設定は保持されますが、切断時には何も実行されません。
+
+**デフォルト値**
+
+すべてのピンのデフォルト値は 0 (維持) です。電源投入時やリセット後は、すべてのピンが 0 (維持) に初期化されます。
+
+**使用例**
+
+GPIO2 を切断時に LOW に設定する場合
+
+```text
+[0x01, 0x02, 0x09, 0x01, 0x00]
+```
+
+- 0x01: コマンド個数 (1個)
+- 0x02: ピン番号 (GPIO2)
+- 0x09: コマンド (SET_OUTPUT_ON_DISCONNECT = 9)
+- 0x01: Param1 (切断時に LOW = 1)
+- 0x00: Param2 (未使用)
+
+**実用例**
+
+モーター制御や電磁弁など、切断時に安全な状態にしたい場合に使用します。
+
+例として、GPIO2 でリレーを制御し、切断時には必ず OFF (LOW) にする場合
+
+```text
+1. 切断時の振る舞いを設定
+   [0x01, 0x02, 0x09, 0x01, 0x00]
+
+2. リレーを ON にする
+   [0x01, 0x02, 0x02, 0x00, 0x00]
+
+3. BLE 接続が切断されると、GPIO2 は自動的に LOW になり、リレーが OFF になる
+```
+
+**注意事項**
+
+- この設定は、各 GPIO ピンごとに個別に保持されます
+- 設定はデバイスのリセットまで保持されます (電源投入時には初期化されます)
+- 切断時の振る舞いを変更するには、再度 SET_OUTPUT_ON_DISCONNECT コマンドを送信してください
 
 ### ADC 入力機能
 
@@ -565,7 +644,7 @@ ADC2 は BLE (Bluetooth Low Energy) とハードウェアリソースを共有�
 
 ADC 機能が必要な場合は、必ず ADC1 対応ピン (GPIO32, 33, 34, 35, 36, 39) を使用してください。
 
-**コマンド 30: SET_ADC_ENABLE**
+**コマンド 21: SET_ADC_ENABLE**
 
 GPIO を ADC 入力モードに設定し、減衰率を指定します。
 
@@ -592,16 +671,16 @@ ADC の入力電圧範囲を設定します。
 GPIO32 を 11dB 減衰 (0-3.3V) で ADC 入力として有効化する場合
 
 ```text
-[0x01, 0x20, 0x1E, 0x03, 0x00]
+[0x01, 0x20, 0x15, 0x03, 0x00]
 ```
 
 - 0x01: コマンド個数 (1個)
 - 0x20: ピン番号 (GPIO32 = 0x20 = 32)
-- 0x1E: コマンド (SET_ADC_ENABLE = 30 = 0x1E)
+- 0x15: コマンド (SET_ADC_ENABLE = 21 = 0x15)
 - 0x03: Param1 (減衰設定 = 3 = 11dB)
 - 0x00: Param2 (未使用)
 
-**コマンド 31: SET_ADC_DISABLE**
+**コマンド 22: SET_ADC_DISABLE**
 
 GPIO の ADC モードを無効化します。
 

@@ -383,7 +383,7 @@ namespace Hondarersoft.Bleio
         public async Task DigitalWriteAsync(byte pin, bool value)
         {
             EnsureConnected();
-            byte command = value ? (byte)11 : (byte)10;
+            byte command = value ? (byte)2 : (byte)1;  // SET_OUTPUT_HIGH (2) or SET_OUTPUT_LOW (1)
             await SendCommandsAsync(new[] { new GpioCommand(pin, command, 0, 0) });
         }
 
@@ -478,10 +478,9 @@ namespace Hondarersoft.Bleio
 
         public enum PinMode : byte
         {
-            Output = 0,
-            InputFloating = 1,
-            InputPullup = 2,
-            InputPulldown = 3
+            InputFloating = 11,
+            InputPullup = 12,
+            InputPulldown = 13
         }
 
         public enum LatchMode : byte
@@ -493,8 +492,8 @@ namespace Hondarersoft.Bleio
 
         public enum BlinkMode : byte
         {
-            Blink500ms = 12,
-            Blink250ms = 13
+            Blink250ms = 3,   // SET_OUTPUT_BLINK_250MS
+            Blink500ms = 4    // SET_OUTPUT_BLINK_500MS
         }
 
         public enum PwmFrequency : byte
@@ -517,6 +516,13 @@ namespace Hondarersoft.Bleio
             Atten11dB = 3      // 11 dB (0-3.3V、デフォルト)
         }
 
+        public enum DisconnectBehavior : byte
+        {
+            Maintain = 0,      // 状態を維持
+            SetLow = 1,        // 切断時に LOW
+            SetHigh = 2        // 切断時に HIGH
+        }
+
         public async Task StartBlinkAsync(byte pin, BlinkMode mode)
         {
             EnsureConnected();
@@ -537,9 +543,19 @@ namespace Hondarersoft.Bleio
             // 0.0-1.0 を 0-255 に変換
             byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
 
-            // コマンドを送信 (コマンド 20: SET_PWM)
+            // コマンドを送信 (コマンド 5: SET_OUTPUT_PWM)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 20, dutyCycleByte, (byte)frequency)
+                new GpioCommand(pin, 5, dutyCycleByte, (byte)frequency)
+            });
+        }
+
+        public async Task SetOutputOnDisconnectAsync(byte pin, DisconnectBehavior behavior)
+        {
+            EnsureConnected();
+
+            // コマンドを送信 (コマンド 9: SET_OUTPUT_ON_DISCONNECT)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 9, (byte)behavior, 0)
             });
         }
 
@@ -553,9 +569,9 @@ namespace Hondarersoft.Bleio
                 throw new ArgumentException($"GPIO{pin} は ADC1 に対応していません。対応ピン: 32, 33, 34, 35, 36, 39");
             }
 
-            // コマンドを送信 (コマンド 30: SET_ADC_ENABLE)
+            // コマンドを送信 (コマンド 21: SET_ADC_ENABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 30, (byte)attenuation, 0)
+                new GpioCommand(pin, 21, (byte)attenuation, 0)
             });
         }
 
@@ -563,9 +579,9 @@ namespace Hondarersoft.Bleio
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 31: SET_ADC_DISABLE)
+            // コマンドを送信 (コマンド 22: SET_ADC_DISABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 31, 0, 0)
+                new GpioCommand(pin, 22, 0, 0)
             });
         }
 
