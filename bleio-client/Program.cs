@@ -38,7 +38,7 @@ class Program
 
             // 13 (緑)
             // 12 (黄)
-            // 14 (赤)
+            await client.SetOutputAsync(14, BleioClient.OutputKind.Blink500ms); // 14 (赤)
             // 27 (ブザー)
 
             // 26 (SW in)
