@@ -323,13 +323,18 @@ namespace Hondarersoft.Bleio
             }
         }
 
-        public async Task SetPinModeAsync(byte pin, PinMode mode, LatchMode latchMode = LatchMode.None)
+        public async Task SetInputAsync(byte pin, InputConfig config, LatchMode latchMode = LatchMode.None)
         {
             EnsureConnected();
-            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, (byte)latchMode, 0) });
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)config, (byte)latchMode, 0) });
         }
 
-        public async Task SendCommandsAsync(GpioCommand[] commands)
+        public async Task SendBulkAsync(params GpioCommand[] commands)
+        {
+            await SendCommandsAsync(commands);
+        }
+
+        internal async Task SendCommandsAsync(GpioCommand[] commands)
         {
             EnsureConnected();
 
@@ -380,17 +385,16 @@ namespace Hondarersoft.Bleio
             }
         }
 
-        public async Task DigitalWriteAsync(byte pin, bool value)
+        public async Task SetOutputAsync(byte pin, OutputKind outputKind)
         {
             EnsureConnected();
-            byte command = value ? (byte)2 : (byte)1;  // SET_OUTPUT_HIGH (2) or SET_OUTPUT_LOW (1)
-            await SendCommandsAsync(new[] { new GpioCommand(pin, command, 0, 0) });
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)outputKind, 0, 0) });
         }
 
-        public async Task<bool?> DigitalReadAsync(byte pin)
+        public async Task<bool?> ReadInputAsync(byte pin)
         {
             EnsureConnected();
-            var inputs = await ReadAllInputsAsync();
+            var inputs = await ReadAllInputAsync();
             var pinData = inputs.FirstOrDefault(i => i.Pin == pin);
 
             if (pinData.Pin == 0 && pin != 0)
@@ -402,7 +406,7 @@ namespace Hondarersoft.Bleio
             return pinData.State;
         }
 
-        public async Task<(byte Pin, bool State)[]> ReadAllInputsAsync()
+        public async Task<(byte Pin, bool State)[]> ReadAllInputAsync()
         {
             EnsureConnected();
 
@@ -476,24 +480,26 @@ namespace Hondarersoft.Bleio
             CleanupResources();
         }
 
-        public enum PinMode : byte
+        public enum OutputKind : byte
         {
-            InputFloating = 11,
-            InputPullup = 12,
-            InputPulldown = 13
+            Low = 1,           // SET_OUTPUT_LOW
+            High = 2,          // SET_OUTPUT_HIGH
+            Blink250ms = 3,    // SET_OUTPUT_BLINK_250MS
+            Blink500ms = 4     // SET_OUTPUT_BLINK_500MS
+        }
+
+        public enum InputConfig : byte
+        {
+            Floating = 11,     // SET_INPUT_FLOATING
+            PullUp = 12,       // SET_INPUT_PULLUP
+            PullDown = 13      // SET_INPUT_PULLDOWN
         }
 
         public enum LatchMode : byte
         {
-            None = 0,
-            Low = 1,
-            High = 2
-        }
-
-        public enum BlinkMode : byte
-        {
-            Blink250ms = 3,   // SET_OUTPUT_BLINK_250MS
-            Blink500ms = 4    // SET_OUTPUT_BLINK_500MS
+            None = 0,          // ラッチなし
+            Low = 1,           // LOW エッジラッチ
+            High = 2           // HIGH エッジラッチ
         }
 
         public enum PwmFrequency : byte
@@ -523,12 +529,6 @@ namespace Hondarersoft.Bleio
             SetHigh = 2        // 切断時に HIGH
         }
 
-        public async Task StartBlinkAsync(byte pin, BlinkMode mode)
-        {
-            EnsureConnected();
-            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)mode, 0, 0) });
-        }
-
         public async Task SetPwmAsync(byte pin, double dutyCycle, PwmFrequency frequency = PwmFrequency.Freq1kHz)
         {
             EnsureConnected();
@@ -549,7 +549,7 @@ namespace Hondarersoft.Bleio
             });
         }
 
-        public async Task SetOutputOnDisconnectAsync(byte pin, DisconnectBehavior behavior)
+        public async Task SetDisconnectBehaviorAsync(byte pin, DisconnectBehavior behavior)
         {
             EnsureConnected();
 
@@ -585,13 +585,13 @@ namespace Hondarersoft.Bleio
             });
         }
 
-        public async Task<(byte Pin, uint RawValue, double Voltage)?> ReadAdcAsync(byte pin)
+        public async Task<AdcReading?> ReadAdcAsync(byte pin)
         {
             EnsureConnected();
             var adcValues = await ReadAllAdcAsync();
             var pinData = adcValues.FirstOrDefault(a => a.Pin == pin);
 
-            if (pinData.Pin == 0 && pin != 0)
+            if (pinData?.Pin == 0 && pin != 0)
             {
                 Console.WriteLine($"GPIO{pin} は ADC モードに設定されていません");
                 return null;
@@ -600,7 +600,7 @@ namespace Hondarersoft.Bleio
             return pinData;
         }
 
-        public async Task<(byte Pin, uint RawValue, double Voltage)[]> ReadAllAdcAsync()
+        public async Task<AdcReading[]> ReadAllAdcAsync()
         {
             EnsureConnected();
 
@@ -645,14 +645,14 @@ namespace Hondarersoft.Bleio
                         $"受信データ長が不正です (期待: {expectedLen} バイト, 実際: {response.Length} バイト)");
                 }
 
-                var adcValues = new (byte Pin, uint RawValue, double Voltage)[count];
+                var adcValues = new AdcReading[count];
                 for (int i = 0; i < count; i++)
                 {
                     byte pin = response[1 + i * 3];
                     ushort rawValue = (ushort)(response[1 + i * 3 + 1] | (response[1 + i * 3 + 2] << 8));
                     // デフォルトで 11 dB (12 dB) 減衰と仮定して電圧を計算
                     double voltage = AdcToVoltage(rawValue, AdcAttenuation.Atten11dB);
-                    adcValues[i] = (pin, rawValue, voltage);
+                    adcValues[i] = new AdcReading(pin, rawValue, voltage);
 
                     Console.WriteLine($"    GPIO{pin}: Raw={rawValue}, Voltage={voltage:F3}V");
                 }
@@ -670,7 +670,7 @@ namespace Hondarersoft.Bleio
             }
         }
 
-        public static double AdcToVoltage(ushort adcValue, AdcAttenuation attenuation)
+        internal static double AdcToVoltage(ushort adcValue, AdcAttenuation attenuation)
         {
             double maxVoltage = attenuation switch
             {
@@ -685,5 +685,34 @@ namespace Hondarersoft.Bleio
         }
 
         public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
+
+        public record AdcReading(byte Pin, uint RawValue, double Voltage);
+    }
+
+    public static class Command
+    {
+        public static BleioClient.GpioCommand SetOutput(byte pin, BleioClient.OutputKind outputKind) =>
+            new BleioClient.GpioCommand(pin, (byte)outputKind, 0, 0);
+
+        public static BleioClient.GpioCommand SetPwm(byte pin, double dutyCycle, BleioClient.PwmFrequency frequency = BleioClient.PwmFrequency.Freq1kHz)
+        {
+            if (dutyCycle < 0.0 || dutyCycle > 1.0)
+                throw new ArgumentOutOfRangeException(nameof(dutyCycle), "デューティサイクルは 0.0 から 1.0 の範囲で指定してください");
+
+            byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
+            return new BleioClient.GpioCommand(pin, 5, dutyCycleByte, (byte)frequency);
+        }
+
+        public static BleioClient.GpioCommand SetInput(byte pin, BleioClient.InputConfig config, BleioClient.LatchMode latchMode = BleioClient.LatchMode.None) =>
+            new BleioClient.GpioCommand(pin, (byte)config, (byte)latchMode, 0);
+
+        public static BleioClient.GpioCommand EnableAdc(byte pin, BleioClient.AdcAttenuation attenuation = BleioClient.AdcAttenuation.Atten11dB) =>
+            new BleioClient.GpioCommand(pin, 21, (byte)attenuation, 0);
+
+        public static BleioClient.GpioCommand DisableAdc(byte pin) =>
+            new BleioClient.GpioCommand(pin, 22, 0, 0);
+
+        public static BleioClient.GpioCommand SetDisconnectBehavior(byte pin, BleioClient.DisconnectBehavior behavior) =>
+            new BleioClient.GpioCommand(pin, 9, (byte)behavior, 0);
     }
 }

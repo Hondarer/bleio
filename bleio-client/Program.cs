@@ -19,22 +19,46 @@ class Program
                 return;
             }
 
+            await client.SetOutputAsync(16, BleioClient.OutputKind.Low); // 白 (ミニ)
+            await client.SetOutputAsync(17, BleioClient.OutputKind.Low); // 緑 (ミニ)
+            await client.SetOutputAsync(18, BleioClient.OutputKind.Low); // 青 (ミニ)
+            await client.SetOutputAsync(19, BleioClient.OutputKind.Low); // 黄 (ミニ)
+            await client.SetOutputAsync(21, BleioClient.OutputKind.Low); // 赤 (ミニ)
+            await Task.Delay(1000);
+            await client.SetOutputAsync(16, BleioClient.OutputKind.High); // 白 (ミニ)
+            await Task.Delay(1000);
+            await client.SetOutputAsync(17, BleioClient.OutputKind.High); // 緑 (ミニ)
+            await Task.Delay(1000);
+            await client.SetOutputAsync(18, BleioClient.OutputKind.High); // 青 (ミニ)
+            await Task.Delay(1000);
+            await client.SetOutputAsync(19, BleioClient.OutputKind.High); // 黄 (ミニ)
+            await Task.Delay(1000);
+            await client.SetOutputAsync(21, BleioClient.OutputKind.High); // 赤 (ミニ)
+            await Task.Delay(1000);
+
+            // 13 (緑)
+            // 12 (黄)
+            // 14 (赤)
+            // 27 (ブザー)
+
+            // 26 (SW in)
+
             // LED を点滅
             for (int i = 0; i < 5; i++)
             {
-                await client.DigitalWriteAsync(2, true);
+                await client.SetOutputAsync(2, BleioClient.OutputKind.High);
                 await Task.Delay(500);
-                await client.DigitalWriteAsync(2, false);
+                await client.SetOutputAsync(2, BleioClient.OutputKind.Low);
                 await Task.Delay(500);
             }
 
             // 自動点滅
-            await client.StartBlinkAsync(2, BleioClient.BlinkMode.Blink250ms);
+            await client.SetOutputAsync(2, BleioClient.OutputKind.Blink250ms);
             await Task.Delay(3000);
 
             // GPIO34 (入力専用ピン) を読み取り
-            await client.SetPinModeAsync(34, BleioClient.PinMode.InputFloating);
-            bool? state = await client.DigitalReadAsync(34);
+            await client.SetInputAsync(34, BleioClient.InputConfig.Floating);
+            bool? state = await client.ReadInputAsync(34);
             if (state == null)
             {
                 Console.WriteLine($"GPIO34 の状態: null");
@@ -68,7 +92,7 @@ class Program
             await Task.Delay(2000);
 
             // PWM を停止 (LED を消灯)
-            await client.DigitalWriteAsync(2, false);
+            await client.SetOutputAsync(2, BleioClient.OutputKind.Low);
             Console.WriteLine("PWM を停止しました");
 
             // ADC でアナログ電圧を読み取り
@@ -83,8 +107,7 @@ class Program
             var adcResult = await client.ReadAdcAsync(32);
             if (adcResult != null)
             {
-                var (pin, rawValue, voltage) = adcResult.Value;
-                Console.WriteLine($"GPIO{pin}: Raw={rawValue}, Voltage={voltage:F3}V");
+                Console.WriteLine($"GPIO{adcResult.Pin}: Raw={adcResult.RawValue}, Voltage={adcResult.Voltage:F3}V");
             }
             else
             {
@@ -99,11 +122,11 @@ class Program
             Console.WriteLine("BLE 切断時の振る舞いを設定します...");
 
             // GPIO2 を切断時に LOW にする設定
-            await client.SetOutputOnDisconnectAsync(2, BleioClient.DisconnectBehavior.SetLow);
+            await client.SetDisconnectBehaviorAsync(2, BleioClient.DisconnectBehavior.SetLow);
             Console.WriteLine("GPIO2 を切断時に LOW に設定する振る舞いを設定しました");
 
             // LED を点灯
-            await client.DigitalWriteAsync(2, true);
+            await client.SetOutputAsync(2, BleioClient.OutputKind.High);
             Console.WriteLine("GPIO2 を HIGH に設定しました (LED 点灯)");
             await Task.Delay(2000);
 
