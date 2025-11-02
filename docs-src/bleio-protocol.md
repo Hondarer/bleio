@@ -60,23 +60,23 @@ WRITE
 
 | コマンド値 | 名称 | 説明 |
 |----------|------|------|
-| 1 | SET_OUTPUT_LOW | ピンの出力を LOW (0V) に設定する|
-| 2 | SET_OUTPUT_HIGH | ピンの出力を HIGH (3.3V) に設定する|
-| 3 | SET_OUTPUT_BLINK_250MS | ピンを 250ms 周期で点滅させる|
-| 4 | SET_OUTPUT_BLINK_500MS | ピンを 500ms 周期で点滅させる|
-| 5 | SET_OUTPUT_PWM | ピンを PWM 出力モードに設定する (Param1: デューティサイクル、Param2: 周波数プリセット)|
-| 9 | SET_OUTPUT_ON_DISCONNECT | BLE 切断時のピンの振る舞いを設定する (Param1: 切断時の動作、Param2-4: 未使用)|
-| 11 | SET_OUTPUT_WS2812B_ENABLE | WS2812B 出力モードを有効化する (Param1: LED 個数、Param2: 基準輝度、Param3-4: 未使用) |
-| 12 | SET_OUTPUT_WS2812B_BASECOLOR | WS2812B の基本出力色を設定する (Param1: LED 番号、Param2: R、Param3: G、Param4: B) |
-| 81 | SET_INPUT_FLOATING | ピンをハイインピーダンス入力モードに設定する |
-| 82 | SET_INPUT_PULLUP | ピンを内部プルアップ付き入力モードに設定する |
-| 83 | SET_INPUT_PULLDOWN | ピンを内部プルダウン付き入力モードに設定する |
-| 91 | SET_ADC_ENABLE | ピンを ADC 入力モードに設定する (Param1: 減衰設定、Param2-4: 未使用)|
-| 92 | SET_ADC_DISABLE | ピンの ADC 入力モードを無効化する (Param1-4: 未使用)|
+| 0x01 | SET_OUTPUT_LOW | ピンの出力を LOW (0V) に設定する|
+| 0x02 | SET_OUTPUT_HIGH | ピンの出力を HIGH (3.3V) に設定する|
+| 0x03 | SET_OUTPUT_BLINK_250MS | ピンを 250ms 周期で点滅させる|
+| 0x04 | SET_OUTPUT_BLINK_500MS | ピンを 500ms 周期で点滅させる|
+| 0x05 | SET_OUTPUT_PWM | ピンを PWM 出力モードに設定する (Param1: デューティサイクル、Param2: 周波数プリセット) |
+| 0x09 | SET_OUTPUT_ON_DISCONNECT | BLE 切断時のピンの振る舞いを設定する (Param1: 切断時の動作) |
+| 0x11 | SET_OUTPUT_WS2812B_ENABLE | WS2812B 出力モードを有効化する (Param1: LED 個数、Param2: 基準輝度) |
+| 0x12 | SET_OUTPUT_WS2812B_BASECOLOR | WS2812B の基本出力色を設定する (Param1: LED 番号、Param2: R、Param3: G、Param4: B) |
+| 0x81 | SET_INPUT_FLOATING | ピンをハイインピーダンス入力モードに設定する |
+| 0x82 | SET_INPUT_PULLUP | ピンを内部プルアップ付き入力モードに設定する |
+| 0x83 | SET_INPUT_PULLDOWN | ピンを内部プルダウン付き入力モードに設定する |
+| 0x91 | SET_ADC_ENABLE | ピンを ADC 入力モードに設定する (Param1: 減衰設定) |
+| 0x92 | SET_ADC_DISABLE | ピンの ADC 入力モードを無効化する |
 
 **注記**
 
-出力モードに設定するには、SET_OUTPUT_LOW (1)、SET_OUTPUT_HIGH (2)、SET_OUTPUT_BLINK_250MS (3)、SET_OUTPUT_BLINK_500MS (4)、または SET_OUTPUT_PWM (5) のいずれかを使用してください。
+出力モードに設定するには、SET_OUTPUT_LOW (0x01)、SET_OUTPUT_HIGH (0x02)、SET_OUTPUT_BLINK_250MS (0x03)、SET_OUTPUT_BLINK_500MS (0x04)、または SET_OUTPUT_PWM (0x05) のいずれかを使用してください。
 
 **使用例**
 
@@ -85,10 +85,10 @@ WRITE
 - GPIO2 を HIGH にする場合は `[0x01, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00]` を送信します
   - 0x01: コマンド個数 (1個)
   - 0x02: ピン番号 (GPIO2)
-  - 0x02: コマンド (SET_OUTPUT_HIGH = 2)
+  - 0x02: コマンド (SET_OUTPUT_HIGH = 0x02)
   - 0x00, 0x00, 0x00, 0x00: パラメータ (未使用)
 - GPIO2 を LOW にする場合は `[0x01, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00]` を送信します
-  - 0x01: コマンド (SET_OUTPUT_LOW = 1)
+  - 0x01: コマンド (SET_OUTPUT_LOW = 0x01)
 
 複数コマンドの一括送信
 
@@ -168,13 +168,13 @@ GPIO34, GPIO35, GPIO36, GPIO39
 - 点滅コマンドを受信すると、GPIO は自動的に出力モードに設定されます
 - 点滅は LOW (0V) から開始され、指定された周期で HIGH と LOW を繰り返します
 - 複数の GPIO を同時に異なる周期で点滅させることができます
-- 点滅を停止するには、SET_OUTPUT_LOW (コマンド 1) または SET_OUTPUT_HIGH (コマンド 2) を送信します
+- 点滅を停止するには、SET_OUTPUT_LOW (コマンド 0x01) または SET_OUTPUT_HIGH (コマンド 0x02) を送信します
 
 **タイマ実装**
 
 - 内部タイマは 250ms 周期で動作します
-- SET_OUTPUT_BLINK_250MS (コマンド 3) は 250ms ごとに状態を反転します
-- SET_OUTPUT_BLINK_500MS (コマンド 4) は 500ms ごとに状態を反転します (内部カウンタで 2 回に 1 回反転)
+- SET_OUTPUT_BLINK_250MS (コマンド 0x03) は 250ms ごとに状態を反転します
+- SET_OUTPUT_BLINK_500MS (コマンド 0x04) は 500ms ごとに状態を反転します (内部カウンタで 2 回に 1 回反転)
 
 ### 入力ラッチ機能
 
@@ -203,12 +203,12 @@ GPIO34, GPIO35, GPIO36, GPIO39
 GPIO34 を内部プルアップ付き入力モードに設定し、LOW エッジをラッチする場合
 
 ```text
-[0x01, 0x22, 0x52, 0x01, 0x00, 0x00, 0x00]
+[0x01, 0x22, 0x82, 0x01, 0x00, 0x00, 0x00]
 ```
 
 - 0x01: コマンド個数 (1個)
 - 0x22: ピン番号 (GPIO34 = 0x22 = 34)
-- 0x52: コマンド (SET_INPUT_PULLUP = 82 = 0x52)
+- 0x82: コマンド (SET_INPUT_PULLUP = 0x82)
 - 0x01: Param1 (LATCH_MODE_LOW)
 - 0x00: Param2 (未使用)
 - 0x00: Param3 (未使用)
@@ -247,7 +247,7 @@ bleio-server は、起動時に GPIO の初期化を行いません。すべて�
 
 **推奨事項**
 
-GPIO の状態に依存する動作を行う前に、必ずモードを明示的に設定してください。入力モードの場合は SET_INPUT_FLOATING、SET_INPUT_PULLUP、または SET_INPUT_PULLDOWN を使用し、出力モードの場合は SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK、または SET_OUTPUT_PWM コマンドを使用してください。デフォルト状態は、ブートローダーやアプリケーションの起動コードによって変更される可能性があります。
+GPIO の状態に依存する動作を行う前に、必ずモードを明示的に設定してください。入力モードの場合は SET_INPUT_FLOATING (0x81)、SET_INPUT_PULLUP (0x82)、または SET_INPUT_PULLDOWN (0x83) を使用し、出力モードの場合は SET_OUTPUT_LOW (0x01)、SET_OUTPUT_HIGH (0x02)、SET_OUTPUT_BLINK、または SET_OUTPUT_PWM (0x05) コマンドを使用してください。デフォルト状態は、ブートローダーやアプリケーションの起動コードによって変更される可能性があります。
 
 ### 使用を避けるべきピン
 
@@ -301,7 +301,7 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 | ADC | ADC 入力モード (アナログ電圧読み取り) |
 | WS2812B | WS2812B シリアル LED 出力モード |
 
-出力モードに設定するには、SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK_250MS、SET_OUTPUT_BLINK_500MS、SET_OUTPUT_PWM、または SET_OUTPUT_WS2812B_ENABLE コマンドを使用します。
+出力モードに設定するには、SET_OUTPUT_LOW (0x01)、SET_OUTPUT_HIGH (0x02)、SET_OUTPUT_BLINK_250MS (0x03)、SET_OUTPUT_BLINK_500MS (0x04)、SET_OUTPUT_PWM (0x05)、または SET_OUTPUT_WS2812B_ENABLE (0x11) コマンドを使用します。
 
 ## 通信シーケンス例
 
@@ -365,7 +365,7 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 
     PC -> ESP32: BLE 接続済み
 
-    PC -> ESP32: Write [0x01, 0x22, 0x52, 0x00, 0x00, 0x00, 0x00]\n(GPIO34 を INPUT_PULLUP に設定)
+    PC -> ESP32: Write [0x01, 0x22, 0x82, 0x00, 0x00, 0x00, 0x00]\n(GPIO34 を INPUT_PULLUP に設定)
     note right: GPIO34 にボタンを接続
 
     PC -> ESP32: Read from Read Char
@@ -389,8 +389,8 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 
     PC -> ESP32: BLE 接続済み
 
-    PC -> ESP32: Write [0x03, 0x22, 0x52, 0x00, 0x00, 0x00, 0x00,\n0x23, 0x51, 0x00, 0x00, 0x00, 0x00,\n0x21, 0x52, 0x00, 0x00, 0x00, 0x00]
-    note right: GPIO34 を INPUT_PULLUP (82)\nGPIO35 を INPUT_FLOATING (81)\nGPIO33 を INPUT_PULLUP (82) に設定
+    PC -> ESP32: Write [0x03, 0x22, 0x82, 0x00, 0x00, 0x00, 0x00,\n0x23, 0x81, 0x00, 0x00, 0x00, 0x00,\n0x21, 0x82, 0x00, 0x00, 0x00, 0x00]
+    note right: GPIO34 を INPUT_PULLUP (0x82)\nGPIO35 を INPUT_FLOATING (0x81)\nGPIO33 を INPUT_PULLUP (0x82) に設定
 
     PC -> ESP32: Read from Read Char
     ESP32 -> PC: [0x03, 0x22, 0x01, 0x23, 0x00, 0x21, 0x01]
@@ -469,7 +469,7 @@ GPIO2, GPIO4, GPIO5, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPI
 
 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません。
 
-**コマンド 5: SET_OUTPUT_PWM**
+**コマンド 0x05: SET_OUTPUT_PWM**
 
 GPIO を PWM 出力モードに設定し、デューティサイクルと周波数を指定します。
 
@@ -515,7 +515,7 @@ GPIO2 を 50% デューティサイクル、10 kHz で PWM 出力する場合
 
 - 0x01: コマンド個数 (1 個)
 - 0x02: ピン番号 (GPIO2)
-- 0x05: コマンド (SET_OUTPUT_PWM = 5)
+- 0x05: コマンド (SET_OUTPUT_PWM = 0x05)
 - 0x80: Param1 (デューティサイクル = 128 = 0x80 = 50%)
 - 0x02: Param2 (周波数プリセット = 2 = 10 kHz)
 - 0x00: Param3 (未使用)
@@ -527,7 +527,7 @@ GPIO2 を 50% デューティサイクル、10 kHz で PWM 出力する場合
 - すべての PWM 出力が同じ周波数を共有します (単一タイマー使用のため)
 - デューティサイクルの分解能は 8 ビット (256 段階、0.39% 刻み) です
 - 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません
-- PWM を停止するには、SET_OUTPUT_LOW (コマンド 1) または SET_OUTPUT_HIGH (コマンド 2) を送信します
+- PWM を停止するには、SET_OUTPUT_LOW (コマンド 0x01) または SET_OUTPUT_HIGH (コマンド 0x02) を送信します
 - 9 個目の GPIO に PWM を設定しようとすると、サーバー側でエラーメッセージが出力され、コマンドは無視されます
 
 **PWM 停止**
@@ -544,7 +544,7 @@ BLE 接続が切断された際、出力ピンの状態を制御する設定を�
 
 SET_OUTPUT_ON_DISCONNECT コマンドを使うと、各 GPIO ピンごとに、BLE 切断時の振る舞いを設定できます。
 
-**コマンド 9: SET_OUTPUT_ON_DISCONNECT**
+**コマンド 0x09: SET_OUTPUT_ON_DISCONNECT**
 
 GPIO の BLE 切断時の振る舞いを設定します。
 
@@ -587,7 +587,7 @@ GPIO2 を切断時に LOW に設定する場合
 
 - 0x01: コマンド個数 (1個)
 - 0x02: ピン番号 (GPIO2)
-- 0x09: コマンド (SET_OUTPUT_ON_DISCONNECT = 9)
+- 0x09: コマンド (SET_OUTPUT_ON_DISCONNECT = 0x09)
 - 0x01: Param1 (切断時に LOW = 1)
 - 0x00: Param2 (未使用)
 - 0x00: Param3 (未使用)
@@ -665,7 +665,7 @@ ADC2 は BLE (Bluetooth Low Energy) とハードウェアリソースを共有�
 
 ADC 機能が必要な場合は、必ず ADC1 対応ピン (GPIO32, 33, 34, 35, 36, 39) を使用してください。
 
-**コマンド 21: SET_ADC_ENABLE**
+**コマンド 0x91: SET_ADC_ENABLE**
 
 GPIO を ADC 入力モードに設定し、減衰率を指定します。
 
@@ -692,18 +692,18 @@ ADC の入力電圧範囲を設定します。
 GPIO32 を 11dB 減衰 (0-3.3V) で ADC 入力として有効化する場合
 
 ```text
-[0x01, 0x20, 0x5B, 0x03, 0x00, 0x00, 0x00]
+[0x01, 0x20, 0x91, 0x03, 0x00, 0x00, 0x00]
 ```
 
 - 0x01: コマンド個数 (1個)
 - 0x20: ピン番号 (GPIO32 = 0x20 = 32)
-- 0x5B: コマンド (SET_ADC_ENABLE = 91 = 0x5B)
+- 0x91: コマンド (SET_ADC_ENABLE = 0x91)
 - 0x03: Param1 (減衰設定 = 3 = 11dB)
 - 0x00: Param2 (未使用)
 - 0x00: Param3 (未使用)
 - 0x00: Param4 (未使用)
 
-**コマンド 92: SET_ADC_DISABLE**
+**コマンド 0x92: SET_ADC_DISABLE**
 
 GPIO の ADC モードを無効化します。
 
@@ -808,7 +808,7 @@ GPIO2, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO19, GPIO21, G
 
 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません。
 
-**コマンド 11: SET_OUTPUT_WS2812B_ENABLE**
+**コマンド 0x11: SET_OUTPUT_WS2812B_ENABLE**
 
 GPIO を WS2812B 出力モードに設定し、LED 個数と基準輝度を指定します。
 
@@ -842,18 +842,18 @@ LED の明るさを調整する基準輝度を指定します (0-255)。
 GPIO18 に接続された 10 個の LED チェーンを 100% 輝度で有効化する場合
 
 ```text
-[0x01, 0x12, 0x0B, 0x0A, 0x00, 0x00, 0x00]
+[0x01, 0x12, 0x11, 0x0A, 0x00, 0x00, 0x00]
 ```
 
 - 0x01: コマンド個数 (1 個)
 - 0x12: ピン番号 (GPIO18 = 0x12 = 18)
-- 0x0B: コマンド (SET_OUTPUT_WS2812B_ENABLE = 11 = 0x0B)
+- 0x11: コマンド (SET_OUTPUT_WS2812B_ENABLE = 0x11)
 - 0x0A: Param1 (LED 個数 = 10)
 - 0x00: Param2 (基準輝度 = 0 = 100%)
 - 0x00: Param3 (未使用)
 - 0x00: Param4 (未使用)
 
-**コマンド 12: SET_OUTPUT_WS2812B_BASECOLOR**
+**コマンド 0x12: SET_OUTPUT_WS2812B_BASECOLOR**
 
 WS2812B LED チェーンの特定の LED に色を設定します。
 
@@ -871,17 +871,17 @@ WS2812B LED チェーンの特定の LED に色を設定します。
 GPIO18 の LED 3 個に色を設定する場合 (LED1: 赤、LED2: 緑、LED3: 青)
 
 ```text
-[0x03, 0x12, 0x0C, 0x01, 0xFF, 0x00, 0x00, 0x12, 0x0C, 0x02, 0x00, 0xFF, 0x00, 0x12, 0x0C, 0x03, 0x00, 0x00, 0xFF]
+[0x03, 0x12, 0x12, 0x01, 0xFF, 0x00, 0x00, 0x12, 0x12, 0x02, 0x00, 0xFF, 0x00, 0x12, 0x12, 0x03, 0x00, 0x00, 0xFF]
 ```
 
 - 0x03: コマンド個数 (3 個)
-- 0x12, 0x0C, 0x01, 0xFF, 0x00, 0x00: GPIO18 の LED1 を赤に設定 (R=255, G=0, B=0)
-- 0x12, 0x0C, 0x02, 0x00, 0xFF, 0x00: GPIO18 の LED2 を緑に設定 (R=0, G=255, B=0)
-- 0x12, 0x0C, 0x03, 0x00, 0x00, 0xFF: GPIO18 の LED3 を青に設定 (R=0, G=0, B=255)
+- 0x12, 0x12, 0x01, 0xFF, 0x00, 0x00: GPIO18 の LED1 を赤に設定 (R=255, G=0, B=0)
+- 0x12, 0x12, 0x02, 0x00, 0xFF, 0x00: GPIO18 の LED2 を緑に設定 (R=0, G=255, B=0)
+- 0x12, 0x12, 0x03, 0x00, 0x00, 0xFF: GPIO18 の LED3 を青に設定 (R=0, G=0, B=255)
 
 **BLE 切断時の動作**
 
-WS2812B モードでは、SET_OUTPUT_ON_DISCONNECT (コマンド 9) で設定した切断時の振る舞いに従います。
+WS2812B モードでは、SET_OUTPUT_ON_DISCONNECT (コマンド 0x09) で設定した切断時の振る舞いに従います。
 
 | 切断時の振る舞い | 動作 |
 |----------------|------|

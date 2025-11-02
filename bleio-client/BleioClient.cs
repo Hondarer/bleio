@@ -484,17 +484,17 @@ namespace Hondarersoft.Bleio
 
         public enum OutputKind : byte
         {
-            Low = 1,           // SET_OUTPUT_LOW
-            High = 2,          // SET_OUTPUT_HIGH
-            Blink250ms = 3,    // SET_OUTPUT_BLINK_250MS
-            Blink500ms = 4     // SET_OUTPUT_BLINK_500MS
+            Low = 0x01,        // SET_OUTPUT_LOW
+            High = 0x02,       // SET_OUTPUT_HIGH
+            Blink250ms = 0x03, // SET_OUTPUT_BLINK_250MS
+            Blink500ms = 0x04  // SET_OUTPUT_BLINK_500MS
         }
 
         public enum InputConfig : byte
         {
-            Floating = 81,     // SET_INPUT_FLOATING
-            PullUp = 82,       // SET_INPUT_PULLUP
-            PullDown = 83      // SET_INPUT_PULLDOWN
+            Floating = 0x81,   // SET_INPUT_FLOATING
+            PullUp = 0x82,     // SET_INPUT_PULLUP
+            PullDown = 0x83    // SET_INPUT_PULLDOWN
         }
 
         public enum LatchMode : byte
@@ -545,9 +545,9 @@ namespace Hondarersoft.Bleio
             // 0.0-1.0 を 0-255 に変換
             byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
 
-            // コマンドを送信 (コマンド 5: SET_OUTPUT_PWM)
+            // コマンドを送信 (コマンド 0x05: SET_OUTPUT_PWM)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 5, dutyCycleByte, (byte)frequency, 0, 0)
+                new GpioCommand(pin, 0x05, dutyCycleByte, (byte)frequency, 0, 0)
             });
         }
 
@@ -555,9 +555,9 @@ namespace Hondarersoft.Bleio
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 9: SET_OUTPUT_ON_DISCONNECT)
+            // コマンドを送信 (コマンド 0x09: SET_OUTPUT_ON_DISCONNECT)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 9, (byte)behavior, 0, 0, 0)
+                new GpioCommand(pin, 0x09, (byte)behavior, 0, 0, 0)
             });
         }
 
@@ -570,9 +570,9 @@ namespace Hondarersoft.Bleio
                 throw new ArgumentException("LED 個数は 1 以上を指定してください", nameof(numLeds));
             }
 
-            // コマンドを送信 (コマンド 11: SET_OUTPUT_WS2812B_ENABLE)
+            // コマンドを送信 (コマンド 0x11: SET_OUTPUT_WS2812B_ENABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 11, numLeds, brightness, 0, 0)
+                new GpioCommand(pin, 0x11, numLeds, brightness, 0, 0)
             });
         }
 
@@ -580,9 +580,9 @@ namespace Hondarersoft.Bleio
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 12: SET_OUTPUT_WS2812B_BASECOLOR)
+            // コマンドを送信 (コマンド 0x12: SET_OUTPUT_WS2812B_BASECOLOR)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 12, ledIndex, r, g, b)
+                new GpioCommand(pin, 0x12, ledIndex, r, g, b)
             });
         }
 
@@ -596,9 +596,9 @@ namespace Hondarersoft.Bleio
                 throw new ArgumentException($"GPIO{pin} は ADC1 に対応していません。対応ピン: 32, 33, 34, 35, 36, 39");
             }
 
-            // コマンドを送信 (コマンド 91: SET_ADC_ENABLE)
+            // コマンドを送信 (コマンド 0x91: SET_ADC_ENABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 91, (byte)attenuation, 0, 0, 0)
+                new GpioCommand(pin, 0x91, (byte)attenuation, 0, 0, 0)
             });
         }
 
@@ -606,9 +606,9 @@ namespace Hondarersoft.Bleio
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 92: SET_ADC_DISABLE)
+            // コマンドを送信 (コマンド 0x92: SET_ADC_DISABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 92, 0, 0, 0, 0)
+                new GpioCommand(pin, 0x92, 0, 0, 0, 0)
             });
         }
 

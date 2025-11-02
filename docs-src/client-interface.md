@@ -237,10 +237,10 @@ namespace Hondarersoft.Bleio
 {
     public enum OutputKind : byte
     {
-        Low = 1,           // SET_OUTPUT_LOW (コマンド 1)
-        High = 2,          // SET_OUTPUT_HIGH (コマンド 2)
-        Blink250ms = 3,    // SET_OUTPUT_BLINK_250MS (コマンド 3)
-        Blink500ms = 4     // SET_OUTPUT_BLINK_500MS (コマンド 4)
+        Low = 0x01,        // SET_OUTPUT_LOW (コマンド 0x01)
+        High = 0x02,       // SET_OUTPUT_HIGH (コマンド 0x02)
+        Blink250ms = 0x03, // SET_OUTPUT_BLINK_250MS (コマンド 0x03)
+        Blink500ms = 0x04  // SET_OUTPUT_BLINK_500MS (コマンド 0x04)
     }
 }
 ```
@@ -252,9 +252,9 @@ namespace Hondarersoft.Bleio
 {
     public enum InputConfig : byte
     {
-        Floating = 11,     // SET_INPUT_FLOATING (コマンド 11)
-        PullUp = 12,       // SET_INPUT_PULLUP (コマンド 12)
-        PullDown = 13      // SET_INPUT_PULLDOWN (コマンド 13)
+        Floating = 0x81,   // SET_INPUT_FLOATING (コマンド 0x81)
+        PullUp = 0x82,     // SET_INPUT_PULLUP (コマンド 0x82)
+        PullDown = 0x83    // SET_INPUT_PULLDOWN (コマンド 0x83)
     }
 }
 ```
@@ -355,17 +355,17 @@ namespace Hondarersoft.Bleio
 
 | コマンド定数 | 値 | メソッド | 説明 |
 |------------|-----|----------|------|
-| SET_OUTPUT_LOW | 1 | `SetOutputAsync(pin, OutputKind.Low)` | ピンを LOW に設定 |
-| SET_OUTPUT_HIGH | 2 | `SetOutputAsync(pin, OutputKind.High)` | ピンを HIGH に設定 |
-| SET_OUTPUT_BLINK_250MS | 3 | `SetOutputAsync(pin, OutputKind.Blink250ms)` | 250ms 点滅 |
-| SET_OUTPUT_BLINK_500MS | 4 | `SetOutputAsync(pin, OutputKind.Blink500ms)` | 500ms 点滅 |
-| SET_OUTPUT_PWM | 5 | `SetPwmAsync(pin, dutyCycle, frequency)` | PWM 出力 |
-| SET_OUTPUT_ON_DISCONNECT | 9 | `SetDisconnectBehaviorAsync(pin, behavior)` | 切断時動作 |
-| SET_INPUT_FLOATING | 11 | `SetInputAsync(pin, InputConfig.Floating, latchMode)` | 入力 (フローティング) |
-| SET_INPUT_PULLUP | 12 | `SetInputAsync(pin, InputConfig.PullUp, latchMode)` | 入力 (プルアップ) |
-| SET_INPUT_PULLDOWN | 13 | `SetInputAsync(pin, InputConfig.PullDown, latchMode)` | 入力 (プルダウン) |
-| SET_ADC_ENABLE | 21 | `EnableAdcAsync(pin, attenuation)` | ADC 有効化 |
-| SET_ADC_DISABLE | 22 | `DisableAdcAsync(pin)` | ADC 無効化 |
+| SET_OUTPUT_LOW | 0x01 | `SetOutputAsync(pin, OutputKind.Low)` | ピンを LOW に設定 |
+| SET_OUTPUT_HIGH | 0x02 | `SetOutputAsync(pin, OutputKind.High)` | ピンを HIGH に設定 |
+| SET_OUTPUT_BLINK_250MS | 0x03 | `SetOutputAsync(pin, OutputKind.Blink250ms)` | 250ms 点滅 |
+| SET_OUTPUT_BLINK_500MS | 0x04 | `SetOutputAsync(pin, OutputKind.Blink500ms)` | 500ms 点滅 |
+| SET_OUTPUT_PWM | 0x05 | `SetPwmAsync(pin, dutyCycle, frequency)` | PWM 出力 |
+| SET_OUTPUT_ON_DISCONNECT | 0x09 | `SetDisconnectBehaviorAsync(pin, behavior)` | 切断時動作 |
+| SET_INPUT_FLOATING | 0x81 | `SetInputAsync(pin, InputConfig.Floating, latchMode)` | 入力 (フローティング) |
+| SET_INPUT_PULLUP | 0x82 | `SetInputAsync(pin, InputConfig.PullUp, latchMode)` | 入力 (プルアップ) |
+| SET_INPUT_PULLDOWN | 0x83 | `SetInputAsync(pin, InputConfig.PullDown, latchMode)` | 入力 (プルダウン) |
+| SET_ADC_ENABLE | 0x91 | `EnableAdcAsync(pin, attenuation)` | ADC 有効化 |
+| SET_ADC_DISABLE | 0x92 | `DisableAdcAsync(pin)` | ADC 無効化 |
 
 ### キャラクタリスティック UUID
 
@@ -424,20 +424,20 @@ public static class Command
             throw new ArgumentOutOfRangeException(nameof(dutyCycle), "デューティサイクルは 0.0 から 1.0 の範囲で指定してください");
 
         byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
-        return new GpioCommand(pin, 5, dutyCycleByte, (byte)frequency);
+        return new GpioCommand(pin, 0x05, dutyCycleByte, (byte)frequency);
     }
 
     public static GpioCommand SetInput(byte pin, InputConfig config, LatchMode latchMode = LatchMode.None) =>
         new GpioCommand(pin, (byte)config, (byte)latchMode, 0);
 
     public static GpioCommand EnableAdc(byte pin, AdcAttenuation attenuation = AdcAttenuation.Atten11dB) =>
-        new GpioCommand(pin, 21, (byte)attenuation, 0);
+        new GpioCommand(pin, 0x91, (byte)attenuation, 0);
 
     public static GpioCommand DisableAdc(byte pin) =>
-        new GpioCommand(pin, 22, 0, 0);
+        new GpioCommand(pin, 0x92, 0, 0);
 
     public static GpioCommand SetDisconnectBehavior(byte pin, DisconnectBehavior behavior) =>
-        new GpioCommand(pin, 9, (byte)behavior, 0);
+        new GpioCommand(pin, 0x09, (byte)behavior, 0);
 }
 ```
 
