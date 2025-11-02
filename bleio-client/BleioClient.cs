@@ -326,7 +326,7 @@ namespace Hondarersoft.Bleio
         public async Task SetInputAsync(byte pin, InputConfig config, LatchMode latchMode = LatchMode.None)
         {
             EnsureConnected();
-            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)config, (byte)latchMode, 0) });
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)config, (byte)latchMode, 0, 0, 0) });
         }
 
         public async Task SendBulkAsync(params GpioCommand[] commands)
@@ -353,13 +353,15 @@ namespace Hondarersoft.Bleio
             // コマンド個数を書き込む
             writer.WriteByte((byte)commands.Length);
 
-            // 各コマンドを書き込む (ピン番号、コマンド、パラメータ1、パラメータ2)
+            // 各コマンドを書き込む (ピン番号、コマンド、パラメータ1-4)
             foreach (var cmd in commands)
             {
                 writer.WriteByte(cmd.Pin);
                 writer.WriteByte(cmd.Command);
                 writer.WriteByte(cmd.Param1);
                 writer.WriteByte(cmd.Param2);
+                writer.WriteByte(cmd.Param3);
+                writer.WriteByte(cmd.Param4);
             }
 
             var result = await _writeCharacteristic.WriteValueAsync(writer.DetachBuffer());
@@ -369,7 +371,7 @@ namespace Hondarersoft.Bleio
                 Console.WriteLine($"{commands.Length} 個のコマンドを送信しました");
                 foreach (var cmd in commands)
                 {
-                    Console.WriteLine($"    {cmd.Pin}, {cmd.Command}, {cmd.Param1}, {cmd.Param2}");
+                    Console.WriteLine($"    {cmd.Pin}, {cmd.Command}, {cmd.Param1}, {cmd.Param2}, {cmd.Param3}, {cmd.Param4}");
                 }
             }
             else
@@ -388,7 +390,7 @@ namespace Hondarersoft.Bleio
         public async Task SetOutputAsync(byte pin, OutputKind outputKind)
         {
             EnsureConnected();
-            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)outputKind, 0, 0) });
+            await SendCommandsAsync(new[] { new GpioCommand(pin, (byte)outputKind, 0, 0, 0, 0) });
         }
 
         public async Task<bool?> ReadInputAsync(byte pin)
@@ -490,9 +492,9 @@ namespace Hondarersoft.Bleio
 
         public enum InputConfig : byte
         {
-            Floating = 11,     // SET_INPUT_FLOATING
-            PullUp = 12,       // SET_INPUT_PULLUP
-            PullDown = 13      // SET_INPUT_PULLDOWN
+            Floating = 81,     // SET_INPUT_FLOATING
+            PullUp = 82,       // SET_INPUT_PULLUP
+            PullDown = 83      // SET_INPUT_PULLDOWN
         }
 
         public enum LatchMode : byte
@@ -545,7 +547,7 @@ namespace Hondarersoft.Bleio
 
             // コマンドを送信 (コマンド 5: SET_OUTPUT_PWM)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 5, dutyCycleByte, (byte)frequency)
+                new GpioCommand(pin, 5, dutyCycleByte, (byte)frequency, 0, 0)
             });
         }
 
@@ -555,7 +557,32 @@ namespace Hondarersoft.Bleio
 
             // コマンドを送信 (コマンド 9: SET_OUTPUT_ON_DISCONNECT)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 9, (byte)behavior, 0)
+                new GpioCommand(pin, 9, (byte)behavior, 0, 0, 0)
+            });
+        }
+
+        public async Task EnableWs2812bAsync(byte pin, byte numLeds, byte brightness = 255)
+        {
+            EnsureConnected();
+
+            if (numLeds == 0)
+            {
+                throw new ArgumentException("LED 個数は 1 以上を指定してください", nameof(numLeds));
+            }
+
+            // コマンドを送信 (コマンド 11: SET_OUTPUT_WS2812B_ENABLE)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 11, numLeds, brightness, 0, 0)
+            });
+        }
+
+        public async Task SetWs2812bColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b)
+        {
+            EnsureConnected();
+
+            // コマンドを送信 (コマンド 12: SET_OUTPUT_WS2812B_BASECOLOR)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 12, ledIndex, r, g, b)
             });
         }
 
@@ -569,9 +596,9 @@ namespace Hondarersoft.Bleio
                 throw new ArgumentException($"GPIO{pin} は ADC1 に対応していません。対応ピン: 32, 33, 34, 35, 36, 39");
             }
 
-            // コマンドを送信 (コマンド 21: SET_ADC_ENABLE)
+            // コマンドを送信 (コマンド 91: SET_ADC_ENABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 21, (byte)attenuation, 0)
+                new GpioCommand(pin, 91, (byte)attenuation, 0, 0, 0)
             });
         }
 
@@ -579,9 +606,9 @@ namespace Hondarersoft.Bleio
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 22: SET_ADC_DISABLE)
+            // コマンドを送信 (コマンド 92: SET_ADC_DISABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 22, 0, 0)
+                new GpioCommand(pin, 92, 0, 0, 0, 0)
             });
         }
 
@@ -684,7 +711,7 @@ namespace Hondarersoft.Bleio
             return (adcValue / 4095.0) * maxVoltage;
         }
 
-        public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
+        public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2, byte Param3, byte Param4);
 
         public record AdcReading(byte Pin, uint RawValue, double Voltage);
     }
@@ -692,7 +719,7 @@ namespace Hondarersoft.Bleio
     public static class Command
     {
         public static BleioClient.GpioCommand SetOutput(byte pin, BleioClient.OutputKind outputKind) =>
-            new BleioClient.GpioCommand(pin, (byte)outputKind, 0, 0);
+            new BleioClient.GpioCommand(pin, (byte)outputKind, 0, 0, 0, 0);
 
         public static BleioClient.GpioCommand SetPwm(byte pin, double dutyCycle, BleioClient.PwmFrequency frequency = BleioClient.PwmFrequency.Freq1kHz)
         {
@@ -700,19 +727,30 @@ namespace Hondarersoft.Bleio
                 throw new ArgumentOutOfRangeException(nameof(dutyCycle), "デューティサイクルは 0.0 から 1.0 の範囲で指定してください");
 
             byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
-            return new BleioClient.GpioCommand(pin, 5, dutyCycleByte, (byte)frequency);
+            return new BleioClient.GpioCommand(pin, 5, dutyCycleByte, (byte)frequency, 0, 0);
         }
 
         public static BleioClient.GpioCommand SetInput(byte pin, BleioClient.InputConfig config, BleioClient.LatchMode latchMode = BleioClient.LatchMode.None) =>
-            new BleioClient.GpioCommand(pin, (byte)config, (byte)latchMode, 0);
+            new BleioClient.GpioCommand(pin, (byte)config, (byte)latchMode, 0, 0, 0);
 
         public static BleioClient.GpioCommand EnableAdc(byte pin, BleioClient.AdcAttenuation attenuation = BleioClient.AdcAttenuation.Atten11dB) =>
-            new BleioClient.GpioCommand(pin, 21, (byte)attenuation, 0);
+            new BleioClient.GpioCommand(pin, 91, (byte)attenuation, 0, 0, 0);
 
         public static BleioClient.GpioCommand DisableAdc(byte pin) =>
-            new BleioClient.GpioCommand(pin, 22, 0, 0);
+            new BleioClient.GpioCommand(pin, 92, 0, 0, 0, 0);
 
         public static BleioClient.GpioCommand SetDisconnectBehavior(byte pin, BleioClient.DisconnectBehavior behavior) =>
-            new BleioClient.GpioCommand(pin, 9, (byte)behavior, 0);
+            new BleioClient.GpioCommand(pin, 9, (byte)behavior, 0, 0, 0);
+
+        public static BleioClient.GpioCommand EnableWs2812b(byte pin, byte numLeds, byte brightness = 255)
+        {
+            if (numLeds == 0)
+                throw new ArgumentException("LED 個数は 1 以上を指定してください", nameof(numLeds));
+
+            return new BleioClient.GpioCommand(pin, 11, numLeds, brightness, 0, 0);
+        }
+
+        public static BleioClient.GpioCommand SetWs2812bColor(byte pin, byte ledIndex, byte r, byte g, byte b) =>
+            new BleioClient.GpioCommand(pin, 12, ledIndex, r, g, b);
     }
 }

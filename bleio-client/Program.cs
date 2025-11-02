@@ -131,6 +131,43 @@ class Program
             await Task.Delay(2000);
 
             Console.WriteLine("BLE 接続を切断すると、GPIO2 は自動的に LOW になります");
+
+            // WS2812B シリアル LED を制御
+            Console.WriteLine("WS2812B シリアル LED を制御します...");
+
+            // GPIO18 に 2 個の LED チェーンを有効化 (輝度 25%)
+            await client.EnableWs2812bAsync(18, 2, 63);
+            Console.WriteLine("GPIO18 に 2 個の LED チェーンを有効化しました (すべて消灯状態)");
+            await Task.Delay(1000);
+
+            // LED 1 を赤に設定
+            await client.SetWs2812bColorAsync(18, 1, 255, 0, 0);
+            Console.WriteLine("LED 1: 赤");
+            await Task.Delay(500);
+
+            // LED 1 を緑に設定
+            await client.SetWs2812bColorAsync(18, 1, 0, 255, 0);
+            Console.WriteLine("LED 1: 緑");
+            await Task.Delay(500);
+
+            // LED 2 を青に設定
+            await client.SetWs2812bColorAsync(18, 2, 0, 0, 255);
+            Console.WriteLine("LED 1: 青");
+            await Task.Delay(500);
+
+            // LED 2 を黄色に設定
+            await client.SetWs2812bColorAsync(18, 2, 255, 255, 0);
+            Console.WriteLine("LED 1: 黄色");
+            await Task.Delay(500);
+
+            // LED 2 を水色に設定
+            await client.SetWs2812bColorAsync(18, 2, 0, 255, 255);
+            Console.WriteLine("LED 1: 水色");
+            await Task.Delay(2000);
+
+            // WS2812B モードを終了
+            await client.SetOutputAsync(18, BleioClient.OutputKind.Low);
+            Console.WriteLine("WS2812B モードを終了しました");
         }
         catch (InvalidOperationException ex)
         {
