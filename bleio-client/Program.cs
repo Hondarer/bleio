@@ -19,6 +19,14 @@ class Program
                 return;
             }
 
+
+            await client.EnableWs2812bAsync(18, 2, 128);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 160);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 160);
+            await client.SetWs2812bColorAsync(18, 1, 255, 200, 100);
+            await client.SetWs2812bColorAsync(18, 2, 255, 200, 100);
+            return;
+
             await client.SetOutputAsync(16, BleioClient.OutputKind.Low); // 白 (ミニ)
             await client.SetOutputAsync(17, BleioClient.OutputKind.Low); // 緑 (ミニ)
             await client.SetOutputAsync(18, BleioClient.OutputKind.Low); // 青 (ミニ)
@@ -156,17 +164,17 @@ class Program
 
             // LED 2 を青に設定
             await client.SetWs2812bColorAsync(18, 2, 0, 0, 255);
-            Console.WriteLine("LED 1: 青");
+            Console.WriteLine("LED 2: 青");
             await Task.Delay(500);
 
             // LED 2 を黄色に設定
             await client.SetWs2812bColorAsync(18, 2, 255, 255, 0);
-            Console.WriteLine("LED 1: 黄色");
+            Console.WriteLine("LED 2: 黄色");
             await Task.Delay(500);
 
             // LED 2 を水色に設定
             await client.SetWs2812bColorAsync(18, 2, 0, 255, 255);
-            Console.WriteLine("LED 1: 水色");
+            Console.WriteLine("LED 2: 水色");
             await Task.Delay(2000);
 
             // 点滅
@@ -178,6 +186,10 @@ class Program
             await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Rainbow, 12, 128);
             await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Rainbow, 12, 128);
             await Task.Delay(10000);
+
+            // 炎
+            await client.SetWs2812bColorAsync(18, 1, 255, 0, 0);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 128);
 
             // WS2812B モードを終了
             //await client.SetOutputAsync(18, BleioClient.OutputKind.Low);

@@ -537,6 +537,7 @@ public enum Ws2812bPattern : byte
     Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
     Blink500ms = 2,    // 500ms 点灯 / 500ms 消灯
     Rainbow = 3,       // 虹色パターン
+    Flicker = 4,       // 炎のゆらめきパターン
     Unset = 0xFF       // 個別 LED のパターン設定をクリア (GPIO パターンに戻す)
 }
 ```
@@ -553,6 +554,18 @@ public enum Ws2812bPattern : byte
     - 64: 約 1.28秒で一周 (やや遅い)
     - 128: 約 0.64秒で一周 (中速)
     - 255: 約 0.32秒で一周 (高速)
+- **Flicker**:
+  - param1: ゆらめきの速度 (0-255、デフォルト: 128)
+    - 0: 約 0.5秒周期で変化 (デフォルト、中速)
+    - 64: 約 1秒周期で変化 (ゆっくり)
+    - 128: 約 0.5秒周期で変化 (中速)
+    - 255: 約 0.25秒周期で変化 (速い)
+  - param2: ゆらめきの変化幅 (0-255、デフォルト: 128)
+    - 0: 変動なし (基準色のまま)
+    - 64: 小さい変動 (控えめなゆらめき)
+    - 128: 中程度の変動 (自然なゆらめき)
+    - 192: 大きい変動 (激しいゆらめき)
+    - 255: 最大変動 (非常に激しいゆらめき)
 
 **使用例**
 
@@ -572,6 +585,18 @@ await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPatter
 
 // GPIO18 の LED1 の個別パターン設定をクリアして GPIO パターンに戻す
 await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Unset);
+
+// GPIO18 のすべての LED を赤色の炎のゆらめきに設定
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0); // 赤色に設定
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Flicker, param1: 128, param2: 128);
+
+// ゆっくりとしたゆらめき
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Flicker, param1: 64, param2: 96);
+
+// 激しいゆらめき
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Flicker, param1: 255, param2: 192);
 ```
 
 **動作仕様**
@@ -581,7 +606,34 @@ await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPatter
 - 個別パターンが設定されていない LED は、GPIO 全体のパターン (LED 番号 0) を継承します
 - BLINK 系パターンは、デジタル出力の SET_OUTPUT_BLINK_250MS / SET_OUTPUT_BLINK_500MS と同じタイミングで点滅します
 - RAINBOW パターンは、SetWs2812bColorAsync で設定した色を無視します
+- FLICKER パターンは、SetWs2812bColorAsync で設定した色を基準に、明度と色相をランダムに変動させます
 - PATTERN_UNSET は個別 LED (LED 番号 1-255) にのみ設定可能で、個別設定をクリアして GPIO 全体のパターンに戻します
+
+**RAINBOW パターンの動作詳細**
+
+RAINBOW パターンは、HSV 色空間を使用して色相を連続的に変化させ、虹色のアニメーションを生成します。
+
+- **色の流れる方向**: LED 番号 1 (ESP32 に最も近い) から LED 番号 N (最も遠い) 方向に色が流れます
+- **色相オフセット**: 各 LED は、LED 番号に応じた色相オフセットを持ちます
+- **同期動作**: 同じ GPIO の複数の LED は、共通の基準クロックを共有し、同期してアニメーションします
+
+**FLICKER パターンの動作詳細**
+
+FLICKER パターンは、炎のゆらめきを表現するパターンです。SetWs2812bColorAsync で設定した基準色を中心に、明度と色相をランダムに変動させます。
+
+**基本動作**
+
+- **独立した挙動**: 各 LED は独立した疑似乱数生成器を持ち、互いに同期せずに独立してゆらめきます
+- **明度の変動**: 基準色の明度を中心に、小さなランダムウォークで変動します
+- **色相の変動**: 炎らしさを出すため、色相も小さく変動します (明度の変動の 1/8 程度)
+- **注意事項**: 基準色が設定されていない場合 (RGB = 0, 0, 0)、ゆらめきは見えません。必ず先に SetWs2812bColorAsync で色を設定してください
+
+**高度な動作**
+
+- **非対称ローパスフィルタ**: 明るくなるときはゆっくり、暗くなるときは速めに変化します。炎のゆらめきがより自然に見えます
+- **炭火下限**: 基準明度の約 26% を下限とし、完全に消灯せず、常に炭火のように光り続けます
+- **スパーク効果**: 低確率で短時間だけ明度が跳ね上がり、火花が散るような効果を演出します
+- **彩度調整**: 明るいほど彩度を少し下げ、白飛びを抑えて自然な炎の色味を保ちます
 
 ## 関連ドキュメント
 
