@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(C:Userstetsuo.platformiopenvScriptsplatformio.exe run:*)",
+      "Bash(\"C:\\Users\\tetsuo\\.platformio\\penv\\Scripts\\platformio.exe\" run --environment esp32doit-devkit-v1)"
     ],
     "deny": [],
     "ask": []

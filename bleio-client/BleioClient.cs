@@ -371,7 +371,7 @@ namespace Hondarersoft.Bleio
                 Console.WriteLine($"{commands.Length} 個のコマンドを送信しました");
                 foreach (var cmd in commands)
                 {
-                    Console.WriteLine($"    {cmd.Pin}, {cmd.Command}, {cmd.Param1}, {cmd.Param2}, {cmd.Param3}, {cmd.Param4}");
+                    Console.WriteLine($"    {cmd.Pin}, 0x{cmd.Command:X2}, {cmd.Param1}, {cmd.Param2}, {cmd.Param3}, {cmd.Param4}");
                 }
             }
             else

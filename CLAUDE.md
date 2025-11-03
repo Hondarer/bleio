@@ -47,6 +47,14 @@ DOIT ESP32 DevKit V1 (`esp32doit-devkit-v1`)
 
 VS Code + PlatformIO IDE 拡張機能を推奨します。詳細は `docs-src/get_started.md` を参照してください。
 
+#### サーバーのビルド方法
+
+VS Code + PlatformIO IDE 拡張機能に対応したビルドコマンドは以下です。Claude Code がビルド確認する際には以下のコマンドを発行してください。
+
+```powershell
+cd {ProjectRoot}\bleio-server && C:\Users\tetsuo\.platformio\penv\Scripts\platformio.exe run --environment esp32doit-devkit-v1
+```
+
 ## ドキュメント
 
 ### プロトコル仕様

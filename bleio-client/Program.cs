@@ -20,11 +20,11 @@ class Program
             }
 
 
-            await client.EnableWs2812bAsync(18, 2, 128);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 160);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 160);
-            await client.SetWs2812bColorAsync(18, 1, 255, 200, 100);
-            await client.SetWs2812bColorAsync(18, 2, 255, 200, 100);
+            await client.EnableWs2812bAsync(18, 2, 192);
+            await client.SetWs2812bColorAsync(18, 1, 255, 190, 90);
+            await client.SetWs2812bColorAsync(18, 2, 255, 190, 90);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 196);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 196);
             return;
 
             await client.SetOutputAsync(16, BleioClient.OutputKind.Low); // 白 (ミニ)
