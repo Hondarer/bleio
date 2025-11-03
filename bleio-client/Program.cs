@@ -36,6 +36,10 @@ class Program
             await client.SetOutputAsync(21, BleioClient.OutputKind.High); // 赤 (ミニ)
             await Task.Delay(1000);
 
+            await client.SetOutputAsync(16, BleioClient.OutputKind.Blink250ms); // 白 (ミニ)
+            await client.SetOutputAsync(17, BleioClient.OutputKind.Blink500ms); // 緑 (ミニ)
+
+
             // 13 (緑)
             // 12 (黄)
             await client.SetOutputAsync(14, BleioClient.OutputKind.Blink500ms); // 14 (赤)
@@ -136,7 +140,7 @@ class Program
             Console.WriteLine("WS2812B シリアル LED を制御します...");
 
             // GPIO18 に 2 個の LED チェーンを有効化 (輝度 25%)
-            await client.EnableWs2812bAsync(18, 2, 63);
+            await client.EnableWs2812bAsync(18, 2, 64);
             Console.WriteLine("GPIO18 に 2 個の LED チェーンを有効化しました (すべて消灯状態)");
             await Task.Delay(1000);
 
@@ -165,9 +169,19 @@ class Program
             Console.WriteLine("LED 1: 水色");
             await Task.Delay(2000);
 
+            // 点滅
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Blink250ms);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Blink500ms);
+            await Task.Delay(10000);
+
+            // レインボー
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Rainbow, 12, 128);
+            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Rainbow, 12, 128);
+            await Task.Delay(10000);
+
             // WS2812B モードを終了
-            await client.SetOutputAsync(18, BleioClient.OutputKind.Low);
-            Console.WriteLine("WS2812B モードを終了しました");
+            //await client.SetOutputAsync(18, BleioClient.OutputKind.Low);
+            //Console.WriteLine("WS2812B モードを終了しました");
         }
         catch (InvalidOperationException ex)
         {

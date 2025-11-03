@@ -68,6 +68,7 @@ WRITE
 | 0x09 | SET_OUTPUT_ON_DISCONNECT | BLE 切断時のピンの振る舞いを設定する (Param1: 切断時の動作) |
 | 0x11 | SET_OUTPUT_WS2812B_ENABLE | WS2812B 出力モードを有効化する (Param1: LED 個数、Param2: 基準輝度) |
 | 0x12 | SET_OUTPUT_WS2812B_BASECOLOR | WS2812B の基本出力色を設定する (Param1: LED 番号、Param2: R、Param3: G、Param4: B) |
+| 0x13 | SET_OUTPUT_WS2812B_PATTERN | WS2812B の点灯パターンを設定する (Param1: LED 番号、Param2: パターンタイプ、Param3-4: パターンパラメータ) |
 | 0x81 | SET_INPUT_FLOATING | ピンをハイインピーダンス入力モードに設定する |
 | 0x82 | SET_INPUT_PULLUP | ピンを内部プルアップ付き入力モードに設定する |
 | 0x83 | SET_INPUT_PULLDOWN | ピンを内部プルダウン付き入力モードに設定する |
@@ -878,6 +879,107 @@ GPIO18 の LED 3 個に色を設定する場合 (LED1: 赤、LED2: 緑、LED3: �
 - 0x12, 0x12, 0x01, 0xFF, 0x00, 0x00: GPIO18 の LED1 を赤に設定 (R=255, G=0, B=0)
 - 0x12, 0x12, 0x02, 0x00, 0xFF, 0x00: GPIO18 の LED2 を緑に設定 (R=0, G=255, B=0)
 - 0x12, 0x12, 0x03, 0x00, 0x00, 0xFF: GPIO18 の LED3 を青に設定 (R=0, G=0, B=255)
+
+**コマンド 0x13: SET_OUTPUT_WS2812B_PATTERN**
+
+WS2812B LED チェーンの点灯パターンを設定します。個別の LED ごと、または GPIO 全体に対してパターンを適用できます。
+
+**パラメータ**
+
+| パラメータ | 型 | 説明 |
+|----------|-----|------|
+| Param1 | uint8 | LED 番号 (0: GPIO 全体、1-255: 個別 LED) |
+| Param2 | uint8 | パターンタイプ (0-3) |
+| Param3 | uint8 | パターンパラメータ1 (パターンにより異なる) |
+| Param4 | uint8 | パターンパラメータ2 (パターンにより異なる) |
+
+**Param1: LED 番号**
+
+- **0**: 当該 GPIO に接続されているすべての LED に適用 (GPIO 全体)
+- **1 - LED 個数**: 個別の LED にパターンを設定
+
+**Param2: パターンタイプ**
+
+| 値 | パターン名 | 説明 |
+|---|----------|------|
+| 0 | PATTERN_ON | 常時点灯 (デフォルト、SET_OUTPUT_WS2812B_BASECOLOR で設定した色) |
+| 1 | PATTERN_BLINK_250MS | 250ms 点灯 / 250ms 消灯を繰り返す |
+| 2 | PATTERN_BLINK_500MS | 500ms 点灯 / 500ms 消灯を繰り返す |
+| 3 | PATTERN_RAINBOW | 虹色パターン (HSV 色空間を使用した色相変化) |
+| 0xFF | PATTERN_UNSET | 個別 LED のパターン設定をクリア (GPIO パターンに戻す) |
+
+**Param3, Param4: パターンパラメータ**
+
+パターンタイプにより意味が異なります。
+
+- **PATTERN_ON (0)**: Param3, Param4 は未使用 (0x00)
+- **PATTERN_BLINK_250MS (1)**: Param3, Param4 は未使用 (0x00)
+- **PATTERN_BLINK_500MS (2)**: Param3, Param4 は未使用 (0x00)
+- **PATTERN_RAINBOW (3)**:
+  - Param3: 色相が一周する LED 個数 (1-16、デフォルト: 12)
+    - 例: 10 個の LED で色相を 2 周させたい場合は 5 を指定
+  - Param4: 変化スピード (0-255、デフォルト: 128)
+    - 0: 約 0.64秒で一周 (デフォルト、中速)
+    - 1: 約 82秒 (1.4分) で一周 (非常にゆっくり)
+    - 64: 約 1.28秒で一周 (やや遅い)
+    - 128: 約 0.64秒で一周 (中速)
+    - 255: 約 0.32秒で一周 (高速)
+- **PATTERN_UNSET (0xFF)**: Param3, Param4 は未使用 (0x00)
+
+**動作仕様**
+
+- LED 番号 0 でパターンを設定すると、その GPIO のすべての LED に適用されます
+- 個別の LED にパターンを設定した場合、その LED は個別パターンが優先されます
+- 個別パターンが設定されていない LED は、GPIO 全体のパターン (LED 番号 0) を継承します
+- BLINK 系パターンは、デジタル出力の SET_OUTPUT_BLINK_250MS / SET_OUTPUT_BLINK_500MS と同じタイミングで点滅します
+- RAINBOW パターンは、SET_OUTPUT_WS2812B_BASECOLOR で設定した色を無視します
+- PATTERN_UNSET (0xFF) は個別 LED (LED 番号 1-255) にのみ設定可能で、個別設定をクリアして GPIO 全体のパターンに戻します
+- LED 番号 0 に PATTERN_UNSET を設定することはできません (サーバー側でエラーログを出力し、無視されます)
+
+**使用例**
+
+GPIO18 のすべての LED を虹色パターンに設定する場合 (色相が 12 個の LED で一周、変化スピード 128)
+
+```text
+[0x01, 0x12, 0x13, 0x00, 0x03, 0x0C, 0x80]
+```
+
+- 0x01: コマンド個数 (1 個)
+- 0x12: ピン番号 (GPIO18)
+- 0x13: コマンド (SET_OUTPUT_WS2812B_PATTERN = 0x13)
+- 0x00: Param1 (LED 番号 0 = GPIO 全体)
+- 0x03: Param2 (パターンタイプ = 3 = PATTERN_RAINBOW)
+- 0x0C: Param3 (色相が一周する LED 個数 = 12)
+- 0x80: Param4 (変化スピード = 128)
+
+GPIO18 の LED1 を赤の点滅に、LED2-10 を虹色パターンに設定する場合
+
+```text
+[0x03, 0x12, 0x12, 0x01, 0xFF, 0x00, 0x00, 0x12, 0x13, 0x01, 0x01, 0x00, 0x00, 0x12, 0x13, 0x00, 0x03, 0x0A, 0x80]
+```
+
+- 0x03: コマンド個数 (3 個)
+- 0x12, 0x12, 0x01, 0xFF, 0x00, 0x00: GPIO18 の LED1 を赤に設定 (R=255, G=0, B=0)
+- 0x12, 0x13, 0x01, 0x01, 0x00, 0x00: GPIO18 の LED1 を 250ms 点滅パターンに設定
+- 0x12, 0x13, 0x00, 0x03, 0x0A, 0x80: GPIO18 の全 LED を虹色パターンに設定 (色相が 10 LED で一周、スピード 128)
+
+この設定により、LED1 は赤の点滅、LED2-10 は虹色パターンとなります。
+
+GPIO18 の LED1 の個別パターン設定をクリアして GPIO パターンに戻す場合
+
+```text
+[0x01, 0x12, 0x13, 0x01, 0xFF, 0x00, 0x00]
+```
+
+- 0x01: コマンド個数 (1 個)
+- 0x12: ピン番号 (GPIO18)
+- 0x13: コマンド (SET_OUTPUT_WS2812B_PATTERN = 0x13)
+- 0x01: Param1 (LED 番号 1)
+- 0xFF: Param2 (パターンタイプ = 0xFF = PATTERN_UNSET)
+- 0x00: Param3 (未使用)
+- 0x00: Param4 (未使用)
+
+この設定により、LED1 の個別パターンがクリアされ、GPIO 全体のパターン (LED 番号 0 で設定されたパターン) が適用されます。
 
 **BLE 切断時の動作**
 

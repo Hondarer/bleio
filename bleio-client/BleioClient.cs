@@ -531,6 +531,15 @@ namespace Hondarersoft.Bleio
             SetHigh = 2        // 切断時に HIGH
         }
 
+        public enum Ws2812bPattern : byte
+        {
+            On = 0,            // 常時点灯 (デフォルト)
+            Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
+            Blink500ms = 2,    // 500ms 点灯 / 500ms 消灯
+            Rainbow = 3,       // 虹色パターン
+            Unset = 0xFF       // 個別設定をクリア (GPIO パターンを継承)
+        }
+
         public async Task SetPwmAsync(byte pin, double dutyCycle, PwmFrequency frequency = PwmFrequency.Freq1kHz)
         {
             EnsureConnected();
@@ -583,6 +592,16 @@ namespace Hondarersoft.Bleio
             // コマンドを送信 (コマンド 0x12: SET_OUTPUT_WS2812B_BASECOLOR)
             await SendCommandsAsync(new[] {
                 new GpioCommand(pin, 0x12, ledIndex, r, g, b)
+            });
+        }
+
+        public async Task SetWs2812bPatternAsync(byte pin, byte ledIndex, Ws2812bPattern pattern, byte param1 = 0, byte param2 = 0)
+        {
+            EnsureConnected();
+
+            // コマンドを送信 (コマンド 0x13: SET_OUTPUT_WS2812B_PATTERN)
+            await SendCommandsAsync(new[] {
+                new GpioCommand(pin, 0x13, ledIndex, (byte)pattern, param1, param2)
             });
         }
 

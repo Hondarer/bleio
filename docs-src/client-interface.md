@@ -455,7 +455,135 @@ if (pin != 32 && pin != 33 && pin != 34 && pin != 35 && pin != 36 && pin != 39)
 
 出力専用ピン (GPIO34-39) や内部予約ピン (GPIO4, GPIO5) に対する不適切な設定は、サーバー側で無視されます。クライアント側では検証を行いません。
 
+## WS2812B シリアル LED 制御
+
+WS2812B は、1 本の信号線でカラー LED (RGB) を制御できるシリアル LED ドライバ IC です。
+
+### EnableWs2812bAsync
+
+GPIO を WS2812B 出力モードに設定し、LED 個数と基準輝度を指定します。
+
+```csharp
+public async Task EnableWs2812bAsync(byte pin, byte numLeds, byte brightness = 0)
+```
+
+**パラメータ**
+
+- `pin`: GPIO ピン番号 (出力可能なピン)
+- `numLeds`: LED 個数 (1-256)
+- `brightness`: 基準輝度 (0-255、0 は 100% を意味する)
+
+**使用例**
+
+```csharp
+// GPIO18 に 10 個の LED を接続、基準輝度 100% (0)
+await client.EnableWs2812bAsync(pin: 18, numLeds: 10, brightness: 0);
+
+// GPIO18 に 10 個の LED を接続、基準輝度 50% (128)
+await client.EnableWs2812bAsync(pin: 18, numLeds: 10, brightness: 128);
+```
+
+### SetWs2812bColorAsync
+
+WS2812B LED チェーンの特定の LED に色を設定します。
+
+```csharp
+public async Task SetWs2812bColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b)
+```
+
+**パラメータ**
+
+- `pin`: GPIO ピン番号
+- `ledIndex`: LED 番号 (1 から始まる)
+- `r`: 赤 (0-255)
+- `g`: 緑 (0-255)
+- `b`: 青 (0-255)
+
+**使用例**
+
+```csharp
+// GPIO18 の LED1 を赤に設定
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0);
+
+// GPIO18 の LED2 を緑に設定
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 2, r: 0, g: 255, b: 0);
+
+// GPIO18 の LED3 を青に設定
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 3, r: 0, g: 0, b: 255);
+```
+
+### SetWs2812bPatternAsync
+
+WS2812B LED チェーンの点灯パターンを設定します。個別の LED ごと、または GPIO 全体に対してパターンを適用できます。
+
+```csharp
+public async Task SetWs2812bPatternAsync(byte pin, byte ledIndex, Ws2812bPattern pattern, byte param1 = 0, byte param2 = 0)
+```
+
+**パラメータ**
+
+- `pin`: GPIO ピン番号
+- `ledIndex`: LED 番号 (0: GPIO 全体、1-255: 個別 LED)
+- `pattern`: パターンタイプ (Ws2812bPattern enum)
+- `param1`: パターンパラメータ1 (パターンにより異なる)
+- `param2`: パターンパラメータ2 (パターンにより異なる)
+
+**Ws2812bPattern enum**
+
+```csharp
+public enum Ws2812bPattern : byte
+{
+    On = 0,            // 常時点灯 (デフォルト)
+    Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
+    Blink500ms = 2,    // 500ms 点灯 / 500ms 消灯
+    Rainbow = 3,       // 虹色パターン
+    Unset = 0xFF       // 個別 LED のパターン設定をクリア (GPIO パターンに戻す)
+}
+```
+
+**パターンパラメータ**
+
+- **On, Blink250ms, Blink500ms, Unset**: param1, param2 は未使用 (0)
+- **Rainbow**:
+  - param1: 色相が一周する LED 個数 (1-16、デフォルト: 12)
+    - 例: 10 個の LED で色相を 2 周させたい場合は 5 を指定
+  - param2: 変化スピード (0-255、デフォルト: 128)
+    - 0: 約 0.64秒で一周 (デフォルト、中速)
+    - 1: 約 82秒 (1.4分) で一周 (非常にゆっくり)
+    - 64: 約 1.28秒で一周 (やや遅い)
+    - 128: 約 0.64秒で一周 (中速)
+    - 255: 約 0.32秒で一周 (高速)
+
+**使用例**
+
+```csharp
+// GPIO18 のすべての LED を虹色パターンに設定 (色相が 12 LED で一周、スピード 128)
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Rainbow, param1: 12, param2: 128);
+
+// GPIO18 の LED1 を 250ms 点滅パターンに設定
+// (事前に SetWs2812bColorAsync でベースカラーを設定しておく)
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0); // 赤に設定
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Blink250ms);
+
+// GPIO18 の LED2-10 を虹色パターン、LED1 を赤の点滅に設定
+await client.SetWs2812bColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0);
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Blink250ms);
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Rainbow, param1: 10, param2: 128);
+
+// GPIO18 の LED1 の個別パターン設定をクリアして GPIO パターンに戻す
+await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Unset);
+```
+
+**動作仕様**
+
+- LED 番号 0 でパターンを設定すると、その GPIO のすべての LED に適用されます
+- 個別の LED にパターンを設定した場合、その LED は個別パターンが優先されます
+- 個別パターンが設定されていない LED は、GPIO 全体のパターン (LED 番号 0) を継承します
+- BLINK 系パターンは、デジタル出力の SET_OUTPUT_BLINK_250MS / SET_OUTPUT_BLINK_500MS と同じタイミングで点滅します
+- RAINBOW パターンは、SetWs2812bColorAsync で設定した色を無視します
+- PATTERN_UNSET は個別 LED (LED 番号 1-255) にのみ設定可能で、個別設定をクリアして GPIO 全体のパターンに戻します
+
 ## 関連ドキュメント
 
-- [プロトコル仕様](protocol.md): BLE GATT プロトコルの詳細
-- [開発環境セットアップ](get_started.md): ESP32 ファームウェアの開発環境
+- [プロトコル仕様](bleio-protocol.md): BLE GATT プロトコルの詳細
+- [開発環境セットアップ](get-started.md): ESP32 ファームウェアの開発環境
