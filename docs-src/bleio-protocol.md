@@ -66,9 +66,9 @@ WRITE
 | 0x04 | SET_OUTPUT_BLINK_500MS | ピンを 500ms 周期で点滅させる|
 | 0x05 | SET_OUTPUT_PWM | ピンを PWM 出力モードに設定する (Param1: デューティサイクル、Param2: 周波数プリセット) |
 | 0x09 | SET_OUTPUT_ON_DISCONNECT | BLE 切断時のピンの振る舞いを設定する (Param1: 切断時の動作) |
-| 0x11 | SET_OUTPUT_WS2812B_ENABLE | WS2812B 出力モードを有効化する (Param1: LED 個数、Param2: 基準輝度) |
-| 0x12 | SET_OUTPUT_WS2812B_BASECOLOR | WS2812B の基本出力色を設定する (Param1: LED 番号、Param2: R、Param3: G、Param4: B) |
-| 0x13 | SET_OUTPUT_WS2812B_PATTERN | WS2812B の点灯パターンを設定する (Param1: LED 番号、Param2: パターンタイプ、Param3-4: パターンパラメータ) |
+| 0x11 | SET_OUTPUT_SERIALLED_ENABLE | シリアル LED 出力モードを有効化する (Param1: LED 個数、Param2: 基準輝度、Param3: LED 種別) |
+| 0x12 | SET_OUTPUT_SERIALLED_BASECOLOR | シリアル LED の基本出力色を設定する (Param1: LED 番号、Param2: R、Param3: G、Param4: B) |
+| 0x13 | SET_OUTPUT_SERIALLED_PATTERN | シリアル LED の点灯パターンを設定する (Param1: LED 番号、Param2: パターンタイプ、Param3-4: パターンパラメータ) |
 | 0x81 | SET_INPUT_FLOATING | ピンをハイインピーダンス入力モードに設定する |
 | 0x82 | SET_INPUT_PULLUP | ピンを内部プルアップ付き入力モードに設定する |
 | 0x83 | SET_INPUT_PULLDOWN | ピンを内部プルダウン付き入力モードに設定する |
@@ -300,9 +300,9 @@ BLEIO-ESP32 は、各 GPIO の現在のモードを内部で管理していま�
 | BLINK_500MS | 500ms 点滅出力モード |
 | PWM | PWM 出力モード |
 | ADC | ADC 入力モード (アナログ電圧読み取り) |
-| WS2812B | WS2812B シリアル LED 出力モード |
+| SERIAL_LED | シリアル LED 出力モード |
 
-出力モードに設定するには、SET_OUTPUT_LOW (0x01)、SET_OUTPUT_HIGH (0x02)、SET_OUTPUT_BLINK_250MS (0x03)、SET_OUTPUT_BLINK_500MS (0x04)、SET_OUTPUT_PWM (0x05)、または SET_OUTPUT_WS2812B_ENABLE (0x11) コマンドを使用します。
+出力モードに設定するには、SET_OUTPUT_LOW (0x01)、SET_OUTPUT_HIGH (0x02)、SET_OUTPUT_BLINK_250MS (0x03)、SET_OUTPUT_BLINK_500MS (0x04)、SET_OUTPUT_PWM (0x05)、または SET_OUTPUT_SERIALLED_ENABLE (0x11) コマンドを使用します。
 
 ## 通信シーケンス例
 
@@ -563,8 +563,8 @@ BLE 接続が切断された際の GPIO の動作を設定します。
 | Param1 値 | 動作 | 説明 |
 |----------|------|------|
 | 0 | 維持 | 状態を維持する (デフォルト) |
-| 1 | LOW に設定 / 消灯 | 切断時に LOW (0V) に設定する (WS2812B モードの場合はすべて消灯) |
-| 2 | HIGH に設定 / 維持 | 切断時に HIGH (3.3V) に設定する (WS2812B モードの場合は状態を維持) |
+| 1 | LOW に設定 / 消灯 | 切断時に LOW (0V) に設定する (シリアル LED モードの場合はすべて消灯) |
+| 2 | HIGH に設定 / 維持 | 切断時に HIGH (3.3V) に設定する (シリアル LED モードの場合は状態を維持) |
 
 **設定と動作**
 
@@ -781,16 +781,22 @@ GPIO32 で ADC 値 2048 (約 1.65V) を読み取った場合
 - ESP32 の ADC は非線形性があり、完全に正確ではありません (esp_adc_cal によるキャリブレーションを使用しますが、誤差が残ります)
 - 現在の実装では、クライアントからの READ 要求ごとに ADC 値を読み取ります (高速なサンプリングには対応していません)
 
-### WS2812B シリアル LED 出力機能
+### シリアル LED 出力機能
 
-WS2812B は、1 本の信号線でカラー LED (RGB) を制御できるシリアル LED ドライバ IC です。複数の LED を数珠つなぎに接続し、1 本の信号線で各 LED の色を個別に制御できます。
+シリアル LED は、1 本の信号線でカラー LED (RGB) を制御できる LED ドライバ IC です。複数の LED を数珠つなぎに接続し、1 本の信号線で各 LED の色を個別に制御できます。
+
+BLEIO は、以下のシリアル LED に対応しています。
+
+- WS2812B (RGB 順): バリアント品や 5mm DIP タイプ
+- WS2812B (GRB 順): 標準仕様 (5050 SMD パッケージ)
+- WS2811: 外付け LED を駆動するドライバ IC
 
 **概要**
 
-BLEIO は ESP32 の RMT (Remote Control) ペリフェラルを使用して、WS2812B のタイミング仕様に従った信号を生成します。
+BLEIO は ESP32 の RMT (Remote Control) ペリフェラルを使用して、シリアル LED のタイミング仕様に従った信号を生成します。
 
 - 信号方式: 1 線式シリアル通信 (PWM 信号のパルス幅でデータを表現)
-- データフォーマット: 1 個の LED につき 24 ビット (GRB 順、各色 8 ビット)
+- データフォーマット: 1 個の LED につき 24 ビット (各色 8 ビット、順序は LED 種別により異なる)
 - リセット信号: LOW を 50[µs] 以上保持
 
 **タイミング仕様**
@@ -803,15 +809,15 @@ BLEIO は ESP32 の RMT (Remote Control) ペリフェラルを使用して、WS2
 
 **対応ピン**
 
-すべてのデジタル出力可能な GPIO で WS2812B を使用できます。
+すべてのデジタル出力可能な GPIO でシリアル LED を使用できます。
 
 GPIO2, GPIO12, GPIO13, GPIO14, GPIO15, GPIO16, GPIO17, GPIO18, GPIO19, GPIO21, GPIO22, GPIO23, GPIO25, GPIO26, GPIO27, GPIO32, GPIO33
 
 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません。
 
-**コマンド 0x11: SET_OUTPUT_WS2812B_ENABLE**
+**コマンド 0x11: SET_OUTPUT_SERIALLED_ENABLE**
 
-GPIO を WS2812B 出力モードに設定し、LED 個数と基準輝度を指定します。
+GPIO をシリアル LED 出力モードに設定し、LED 個数、基準輝度、LED 種別を指定します。
 
 このコマンドを実行すると、すべての LED が初期状態として消灯 (RGB = 0, 0, 0) されます。
 
@@ -821,12 +827,12 @@ GPIO を WS2812B 出力モードに設定し、LED 個数と基準輝度を指�
 |----------|-----|------|
 | Param1 | uint8 | LED 個数 (1-256) |
 | Param2 | uint8 | 基準輝度 (0-255、0 = 100%、255 = 100%) |
-| Param3 | uint8 | 未使用 (0x00) |
-| Param4 | uint8 | 未使用 (0x00) |
+| Param3 | uint8 | LED 種別 (0-2、デフォルト: 0) |
+| Param4 | uint8 | 未使用 (0) |
 
 **Param1: LED 個数**
 
-WS2812B LED チェーンに接続されている LED の個数を指定します (1-256)。
+シリアル LED チェーンに接続されている LED の個数を指定します (1-256)。
 
 **Param2: 基準輝度**
 
@@ -838,9 +844,23 @@ LED の明るさを調整する基準輝度を指定します (0-255)。
 
 基準輝度は、各 LED に設定された RGB 値に乗算されます。例えば、基準輝度が 128 (50%) で RGB が (255, 0, 0) の場合、実際の出力は (128, 0, 0) になります。
 
+**Param3: LED 種別**
+
+シリアル LED の種別 (カラーオーダー) を指定します。
+
+| 値 | LED 種別 | カラーオーダー | 説明 |
+|---|---------|--------------|------|
+| 0 | WS2812B (RGB) | RGB | WS2812B バリアント (RGB 順)、デフォルト |
+| 1 | WS2812B (GRB) | GRB | WS2812B 標準仕様 (GRB 順) |
+| 2 | WS2811 | RGB | WS2811 ドライバ IC および互換品 |
+
+**デフォルト値**
+
+Param3 が 0 の場合、または省略された場合は、WS2812B (RGB 順) として扱われます。これにより、既存のクライアントコードとの互換性が保たれます。
+
 **使用例**
 
-GPIO18 に接続された 10 個の LED チェーンを 100% 輝度で有効化する場合
+GPIO18 に接続された 10 個の WS2812B (RGB 順) LED チェーンを 100% 輝度で有効化する場合
 
 ```text
 [0x01, 0x12, 0x11, 0x0A, 0x00, 0x00, 0x00]
@@ -848,15 +868,50 @@ GPIO18 に接続された 10 個の LED チェーンを 100% 輝度で有効化�
 
 - 0x01: コマンド個数 (1 個)
 - 0x12: ピン番号 (GPIO18 = 0x12 = 18)
-- 0x11: コマンド (SET_OUTPUT_WS2812B_ENABLE = 0x11)
+- 0x11: コマンド (SET_OUTPUT_SERIALLED_ENABLE = 0x11)
 - 0x0A: Param1 (LED 個数 = 10)
 - 0x00: Param2 (基準輝度 = 0 = 100%)
-- 0x00: Param3 (未使用)
+- 0x00: Param3 (LED 種別 = 0 = WS2812B RGB 順、デフォルト)
 - 0x00: Param4 (未使用)
 
-**コマンド 0x12: SET_OUTPUT_WS2812B_BASECOLOR**
+GPIO18 に接続された 10 個の WS2812B (GRB 順) LED チェーンを 100% 輝度で有効化する場合
 
-WS2812B LED チェーンの特定の LED に色を設定します。
+```text
+[0x01, 0x12, 0x11, 0x0A, 0x00, 0x01, 0x00]
+```
+
+- 0x01: コマンド個数 (1 個)
+- 0x12: ピン番号 (GPIO18 = 0x12 = 18)
+- 0x11: コマンド (SET_OUTPUT_SERIALLED_ENABLE = 0x11)
+- 0x0A: Param1 (LED 個数 = 10)
+- 0x00: Param2 (基準輝度 = 0 = 100%)
+- 0x01: Param3 (LED 種別 = 1 = WS2812B GRB 順)
+- 0x00: Param4 (未使用)
+
+**LED 種別の確認方法**
+
+使用している LED の種別が不明な場合は、以下の手順で確認できます。
+
+1. RGB 順 (Param3=0) で赤色 (R=255, G=0, B=0) を送信
+2. 正しく赤色が表示されれば RGB 順、緑色が表示されれば GRB 順
+
+C# クライアントでのテスト例
+
+```csharp
+// RGB 順でテスト
+await client.EnableSerialLedAsync(18, 1, 255, SerialLedType.WS2812B_RGB);
+await client.SetSerialLedColorAsync(18, 1, 255, 0, 0);
+// 赤く光れば RGB 順、緑く光れば GRB 順
+
+// GRB 順でテスト
+await client.EnableSerialLedAsync(18, 1, 255, SerialLedType.WS2812B_GRB);
+await client.SetSerialLedColorAsync(18, 1, 255, 0, 0);
+// 赤く光れば GRB 順、緑く光れば RGB 順
+```
+
+**コマンド 0x12: SET_OUTPUT_SERIALLED_BASECOLOR**
+
+シリアル LED チェーンの特定の LED に色を設定します。
 
 **パラメータ**
 
@@ -880,9 +935,9 @@ GPIO18 の LED 3 個に色を設定する場合 (LED1: 赤、LED2: 緑、LED3: �
 - 0x12, 0x12, 0x02, 0x00, 0xFF, 0x00: GPIO18 の LED2 を緑に設定 (R=0, G=255, B=0)
 - 0x12, 0x12, 0x03, 0x00, 0x00, 0xFF: GPIO18 の LED3 を青に設定 (R=0, G=0, B=255)
 
-**コマンド 0x13: SET_OUTPUT_WS2812B_PATTERN**
+**コマンド 0x13: SET_OUTPUT_SERIALLED_PATTERN**
 
-WS2812B LED チェーンの点灯パターンを設定します。個別の LED ごと、または GPIO 全体に対してパターンを適用できます。
+シリアル LED チェーンの点灯パターンを設定します。個別の LED ごと、または GPIO 全体に対してパターンを適用できます。
 
 **パラメータ**
 
@@ -902,7 +957,7 @@ WS2812B LED チェーンの点灯パターンを設定します。個別の LED 
 
 | 値 | パターン名 | 説明 |
 |---|----------|------|
-| 0 | PATTERN_ON | 常時点灯 (デフォルト、SET_OUTPUT_WS2812B_BASECOLOR で設定した色) |
+| 0 | PATTERN_ON | 常時点灯 (デフォルト、SET_OUTPUT_SERIALLED_BASECOLOR で設定した色) |
 | 1 | PATTERN_BLINK_250MS | 250ms 点灯 / 250ms 消灯を繰り返す |
 | 2 | PATTERN_BLINK_500MS | 500ms 点灯 / 500ms 消灯を繰り返す |
 | 3 | PATTERN_RAINBOW | 虹色パターン (HSV 色空間を使用した色相変化) |
@@ -945,8 +1000,8 @@ WS2812B LED チェーンの点灯パターンを設定します。個別の LED 
 - 個別の LED にパターンを設定した場合、その LED は個別パターンが優先されます
 - 個別パターンが設定されていない LED は、GPIO 全体のパターン (LED 番号 0) を継承します
 - BLINK 系パターンは、デジタル出力の SET_OUTPUT_BLINK_250MS / SET_OUTPUT_BLINK_500MS と同じタイミングで点滅します
-- RAINBOW パターンは、SET_OUTPUT_WS2812B_BASECOLOR で設定した色を無視します
-- FLICKER パターンは、SET_OUTPUT_WS2812B_BASECOLOR で設定した色を基準に、明度と色相をランダムに変動させます
+- RAINBOW パターンは、SET_OUTPUT_SERIALLED_BASECOLOR で設定した色を無視します
+- FLICKER パターンは、SET_OUTPUT_SERIALLED_BASECOLOR で設定した色を基準に、明度と色相をランダムに変動させます
 - PATTERN_UNSET (0xFF) は個別 LED (LED 番号 1-255) にのみ設定可能で、個別設定をクリアして GPIO 全体のパターンに戻します
 - LED 番号 0 に PATTERN_UNSET を設定することはできません (サーバー側でエラーログを出力し、無視されます)
 
@@ -962,7 +1017,7 @@ RAINBOW パターンは、HSV 色空間を使用して色相を連続的に変�
 
 **FLICKER パターンの動作詳細**
 
-FLICKER パターンは、炎のゆらめきを表現するパターンです。SET_OUTPUT_WS2812B_BASECOLOR で設定した基準色を中心に、明度と色相をランダムに変動させます。
+FLICKER パターンは、炎のゆらめきを表現するパターンです。SET_OUTPUT_SERIALLED_BASECOLOR で設定した基準色を中心に、明度と色相をランダムに変動させます。
 
 **基本動作**
 
@@ -971,7 +1026,7 @@ FLICKER パターンは、炎のゆらめきを表現するパターンです。
 - **色相の変動**: 炎らしさを出すため、色相も小さく変動します (明度の変動の 1/8 程度)
 - **更新周期**: パターンは 10[ms] 周期で更新されます
 - **色変換**: 基準色を HSV に変換し、変動後の HSV を RGB に変換して、ガンマ補正 (γ=2.6) を適用します
-- **注意事項**: 基準色が設定されていない場合 (RGB = 0, 0, 0)、ゆらめきは見えません。必ず SET_OUTPUT_WS2812B_BASECOLOR で色を設定してください
+- **注意事項**: 基準色が設定されていない場合 (RGB = 0, 0, 0)、ゆらめきは見えません。必ず SET_OUTPUT_SERIALLED_BASECOLOR で色を設定してください
 
 **高度な動作**
 
@@ -980,6 +1035,7 @@ FLICKER パターンは、炎のゆらめきを表現するパターンです。
 - **スパーク効果**: 低確率 (約 1.6%) で短時間だけ明度が 1.5 倍に跳ね上がり、火花が散るような効果を演出します
 - **彩度調整**: 明るいほど彩度を少し下げることで、白飛びを抑え、炎の色味を自然に保ちます
 - **目標値更新**: 速度パラメータに応じて 40〜80[ms] 周期で目標値を更新します。遅い速度設定では間引きを強めます
+- **注意事項**: 基準色が設定されていない場合 (RGB = 0, 0, 0)、ゆらめきは見えません。必ず SET_OUTPUT_SERIALLED_BASECOLOR で色を設定してください
 
 **使用例**
 
@@ -991,7 +1047,7 @@ GPIO18 のすべての LED を虹色パターンに設定する場合 (色相が
 
 - 0x01: コマンド個数 (1 個)
 - 0x12: ピン番号 (GPIO18)
-- 0x13: コマンド (SET_OUTPUT_WS2812B_PATTERN = 0x13)
+- 0x13: コマンド (SET_OUTPUT_SERIALLED_PATTERN = 0x13)
 - 0x00: Param1 (LED 番号 0 = GPIO 全体)
 - 0x03: Param2 (パターンタイプ = 3 = PATTERN_RAINBOW)
 - 0x0C: Param3 (色相が一周する LED 個数 = 12)
@@ -1018,7 +1074,7 @@ GPIO18 の LED1 の個別パターン設定をクリアして GPIO パターン�
 
 - 0x01: コマンド個数 (1 個)
 - 0x12: ピン番号 (GPIO18)
-- 0x13: コマンド (SET_OUTPUT_WS2812B_PATTERN = 0x13)
+- 0x13: コマンド (SET_OUTPUT_SERIALLED_PATTERN = 0x13)
 - 0x01: Param1 (LED 番号 1)
 - 0xFF: Param2 (パターンタイプ = 0xFF = PATTERN_UNSET)
 - 0x00: Param3 (未使用)
@@ -1028,34 +1084,34 @@ GPIO18 の LED1 の個別パターン設定をクリアして GPIO パターン�
 
 **BLE 切断時の動作**
 
-WS2812B モードでは、SET_OUTPUT_ON_DISCONNECT (コマンド 0x09) で設定した切断時の振る舞いに従います。
+シリアル LED モードでは、SET_OUTPUT_ON_DISCONNECT (コマンド 0x09) で設定した切断時の振る舞いに従います。
 
 | 切断時の振る舞い | 動作 |
 |----------------|------|
 | 0 (維持) | LED の状態を維持する (何もしない) |
-| 1 (LOW / 消灯) | すべての LED を消灯する (RGB = 0, 0, 0)、WS2812B モードは維持 |
+| 1 (LOW / 消灯) | すべての LED を消灯する (RGB = 0, 0, 0)、シリアル LED モードは維持 |
 | 2 (HIGH / 維持) | LED の状態を維持する (何もしない) |
 
 **制限事項**
 
-- WS2812B モードに設定できる GPIO の数に制限はありませんが、RMT ペリフェラルのチャネル数 (8 チャネル) の制限があるため、同時に 8 個までの GPIO で WS2812B を使用できます
+- シリアル LED モードに設定できる GPIO の数に制限はありませんが、RMT ペリフェラルのチャネル数 (8 チャネル) の制限があるため、同時に 8 個までの GPIO でシリアル LED を使用できます
 - 入力専用ピン (GPIO34, GPIO35, GPIO36, GPIO39) では使用できません
 - 信号品質を向上させるため、信号線に 330[Ω] ~ 470[Ω] の抵抗を直列に接続することを推奨します
 - LED チェーンが長い場合 (10 個以上)、信号線にレベル変換 IC (3.3[V] → 5[V]) を使用することを推奨します
 
-**WS2812B モードの停止**
+**シリアル LED モードの停止**
 
-他のコマンド (SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK_250MS、SET_OUTPUT_BLINK_500MS、SET_OUTPUT_PWM など) を受信すると、WS2812B モードは自動的に停止します。
+他のコマンド (SET_OUTPUT_LOW、SET_OUTPUT_HIGH、SET_OUTPUT_BLINK_250MS、SET_OUTPUT_BLINK_500MS、SET_OUTPUT_PWM など) を受信すると、シリアル LED モードは自動的に停止します。
 
 **停止時の動作**
 
-WS2812B モードを停止する際、以下の処理が自動的に実行されます。
+シリアル LED モードを停止する際、以下の処理が自動的に実行されます。
 
 1. すべての LED を消灯 (RGB = 0, 0, 0) するデータを送信
 2. RMT チャネルとエンコーダを削除
 3. LED データバッファを解放
 
-この処理により、WS2812B モードから他のモードに遷移する際、LED が前の状態のまま点灯し続けることを防ぎます。
+この処理により、シリアル LED モードから他のモードに遷移する際、LED が前の状態のまま点灯し続けることを防ぎます。
 
 ## DOIT ESP32 DevKit V1 のピン情報
 

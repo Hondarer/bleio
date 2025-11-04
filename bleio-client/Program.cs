@@ -20,11 +20,11 @@ class Program
             }
 
 
-            await client.EnableWs2812bAsync(18, 2, 192);
-            await client.SetWs2812bColorAsync(18, 1, 255, 190, 90);
-            await client.SetWs2812bColorAsync(18, 2, 255, 190, 90);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 196);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 196);
+            await client.EnableSerialLedAsync(18, 2, 192);
+            await client.SetSerialLedColorAsync(18, 1, 255, 190, 90);
+            await client.SetSerialLedColorAsync(18, 2, 255, 190, 90);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 196);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 196);
             return;
 
             await client.SetOutputAsync(16, BleioClient.OutputKind.Low); // 白 (ミニ)
@@ -148,48 +148,48 @@ class Program
             Console.WriteLine("WS2812B シリアル LED を制御します...");
 
             // GPIO18 に 2 個の LED チェーンを有効化 (輝度 25%)
-            await client.EnableWs2812bAsync(18, 2, 64);
+            await client.EnableSerialLedAsync(18, 2, 64);
             Console.WriteLine("GPIO18 に 2 個の LED チェーンを有効化しました (すべて消灯状態)");
             await Task.Delay(1000);
 
             // LED 1 を赤に設定
-            await client.SetWs2812bColorAsync(18, 1, 255, 0, 0);
+            await client.SetSerialLedColorAsync(18, 1, 255, 0, 0);
             Console.WriteLine("LED 1: 赤");
             await Task.Delay(500);
 
             // LED 1 を緑に設定
-            await client.SetWs2812bColorAsync(18, 1, 0, 255, 0);
+            await client.SetSerialLedColorAsync(18, 1, 0, 255, 0);
             Console.WriteLine("LED 1: 緑");
             await Task.Delay(500);
 
             // LED 2 を青に設定
-            await client.SetWs2812bColorAsync(18, 2, 0, 0, 255);
+            await client.SetSerialLedColorAsync(18, 2, 0, 0, 255);
             Console.WriteLine("LED 2: 青");
             await Task.Delay(500);
 
             // LED 2 を黄色に設定
-            await client.SetWs2812bColorAsync(18, 2, 255, 255, 0);
+            await client.SetSerialLedColorAsync(18, 2, 255, 255, 0);
             Console.WriteLine("LED 2: 黄色");
             await Task.Delay(500);
 
             // LED 2 を水色に設定
-            await client.SetWs2812bColorAsync(18, 2, 0, 255, 255);
+            await client.SetSerialLedColorAsync(18, 2, 0, 255, 255);
             Console.WriteLine("LED 2: 水色");
             await Task.Delay(2000);
 
             // 点滅
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Blink250ms);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Blink500ms);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Blink250ms);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Blink500ms);
             await Task.Delay(10000);
 
             // レインボー
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Rainbow, 12, 128);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.Ws2812bPattern.Rainbow, 12, 128);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Rainbow, 12, 128);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Rainbow, 12, 128);
             await Task.Delay(10000);
 
             // 炎
-            await client.SetWs2812bColorAsync(18, 1, 255, 0, 0);
-            await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.Ws2812bPattern.Flicker, param1: 128, param2: 128);
+            await client.SetSerialLedColorAsync(18, 1, 255, 0, 0);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 128);
 
             // WS2812B モードを終了
             //await client.SetOutputAsync(18, BleioClient.OutputKind.Low);

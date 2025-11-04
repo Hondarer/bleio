@@ -531,7 +531,14 @@ namespace Hondarersoft.Bleio
             SetHigh = 2        // 切断時に HIGH
         }
 
-        public enum Ws2812bPattern : byte
+        public enum SerialLedType : byte
+        {
+            WS2812B_RGB = 0,      // WS2812B バリアント (RGB 順、デフォルト)
+            WS2812B_GRB = 1,      // WS2812B 標準仕様 (GRB 順)
+            WS2811 = 2            // WS2811 (RGB 順)
+        }
+
+        public enum SerialLedPattern : byte
         {
             On = 0,            // 常時点灯 (デフォルト)
             Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
@@ -571,7 +578,11 @@ namespace Hondarersoft.Bleio
             });
         }
 
-        public async Task EnableWs2812bAsync(byte pin, byte numLeds, byte brightness = 255)
+        public async Task EnableSerialLedAsync(
+            byte pin,
+            byte numLeds,
+            byte brightness = 255,
+            SerialLedType ledType = SerialLedType.WS2812B_RGB)
         {
             EnsureConnected();
 
@@ -580,27 +591,32 @@ namespace Hondarersoft.Bleio
                 throw new ArgumentException("LED 個数は 1 以上を指定してください", nameof(numLeds));
             }
 
-            // コマンドを送信 (コマンド 0x11: SET_OUTPUT_WS2812B_ENABLE)
+            // コマンドを送信 (コマンド 0x11: SET_OUTPUT_SERIALLED_ENABLE)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 0x11, numLeds, brightness, 0, 0)
+                new GpioCommand(pin, 0x11, numLeds, brightness, (byte)ledType, 0)
             });
         }
 
-        public async Task SetWs2812bColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b)
+        public async Task SetSerialLedColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b)
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 0x12: SET_OUTPUT_WS2812B_BASECOLOR)
+            // コマンドを送信 (コマンド 0x12: SET_OUTPUT_SERIALLED_BASECOLOR)
             await SendCommandsAsync(new[] {
                 new GpioCommand(pin, 0x12, ledIndex, r, g, b)
             });
         }
 
-        public async Task SetWs2812bPatternAsync(byte pin, byte ledIndex, Ws2812bPattern pattern, byte param1 = 0, byte param2 = 0)
+        public async Task SetSerialLedPatternAsync(
+            byte pin,
+            byte ledIndex,
+            SerialLedPattern pattern,
+            byte param1 = 0,
+            byte param2 = 0)
         {
             EnsureConnected();
 
-            // コマンドを送信 (コマンド 0x13: SET_OUTPUT_WS2812B_PATTERN)
+            // コマンドを送信 (コマンド 0x13: SET_OUTPUT_SERIALLED_PATTERN)
             await SendCommandsAsync(new[] {
                 new GpioCommand(pin, 0x13, ledIndex, (byte)pattern, param1, param2)
             });
@@ -762,15 +778,27 @@ namespace Hondarersoft.Bleio
         public static BleioClient.GpioCommand SetDisconnectBehavior(byte pin, BleioClient.DisconnectBehavior behavior) =>
             new BleioClient.GpioCommand(pin, 9, (byte)behavior, 0, 0, 0);
 
-        public static BleioClient.GpioCommand EnableWs2812b(byte pin, byte numLeds, byte brightness = 255)
+        public static BleioClient.GpioCommand EnableSerialLed(
+            byte pin,
+            byte numLeds,
+            byte brightness = 255,
+            BleioClient.SerialLedType ledType = BleioClient.SerialLedType.WS2812B_RGB)
         {
             if (numLeds == 0)
                 throw new ArgumentException("LED 個数は 1 以上を指定してください", nameof(numLeds));
 
-            return new BleioClient.GpioCommand(pin, 11, numLeds, brightness, 0, 0);
+            return new BleioClient.GpioCommand(pin, 0x11, numLeds, brightness, (byte)ledType, 0);
         }
 
-        public static BleioClient.GpioCommand SetWs2812bColor(byte pin, byte ledIndex, byte r, byte g, byte b) =>
-            new BleioClient.GpioCommand(pin, 12, ledIndex, r, g, b);
+        public static BleioClient.GpioCommand SetSerialLedColor(byte pin, byte ledIndex, byte r, byte g, byte b) =>
+            new BleioClient.GpioCommand(pin, 0x12, ledIndex, r, g, b);
+
+        public static BleioClient.GpioCommand SetSerialLedPattern(
+            byte pin,
+            byte ledIndex,
+            BleioClient.SerialLedPattern pattern,
+            byte param1 = 0,
+            byte param2 = 0) =>
+            new BleioClient.GpioCommand(pin, 0x13, ledIndex, (byte)pattern, param1, param2);
     }
 }
