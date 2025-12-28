@@ -76,6 +76,11 @@ namespace Hondarersoft.Bleio
         // 切断時動作設定
         public Task SetDisconnectBehaviorAsync(byte pin, DisconnectBehavior behavior);
 
+        // シリアル LED 設定
+        public Task EnableSerialLedAsync(byte pin, byte numLeds, byte brightness = 255, SerialLedType ledType = SerialLedType.WS2812B_RGB);
+        public Task SetSerialLedColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b);
+        public Task SetSerialLedPatternAsync(byte pin, byte ledIndex, SerialLedPattern pattern, byte? ptnParam1 = null, byte? ptnParam2 = null);
+
         // 読み取り
         public Task<bool?> ReadInputAsync(byte pin);
         public Task<(byte Pin, bool State)[]> ReadAllInputAsync(); // すべての入力ピンが入力以外の場合、空配列
@@ -112,6 +117,11 @@ namespace Hondarersoft.Bleio
 
         // 切断時動作コマンド
         public static GpioCommand SetDisconnectBehavior(byte pin, DisconnectBehavior behavior);
+
+        // シリアル LED コマンド
+        public static GpioCommand EnableSerialLed(byte pin, byte numLeds, byte brightness = 255, SerialLedType ledType = SerialLedType.WS2812B_RGB);
+        public static GpioCommand SetSerialLedColor(byte pin, byte ledIndex, byte r, byte g, byte b);
+        public static GpioCommand SetSerialLedPattern(byte pin, byte ledIndex, SerialLedPattern pattern, byte ptnParam1 = 0, byte ptnParam2 = 0);
     }
 }
 ```
@@ -321,6 +331,39 @@ namespace Hondarersoft.Bleio
 }
 ```
 
+### SerialLedType enum
+
+```csharp
+namespace Hondarersoft.Bleio
+{
+    public enum SerialLedType : byte
+    {
+        WS2812B_RGB = 0,   // WS2812B バリアント (RGB 順、デフォルト)
+        WS2812B_GRB = 1,   // WS2812B 標準仕様 (GRB 順)
+        WS2811 = 2         // WS2811 (RGB 順)
+    }
+}
+```
+
+### SerialLedPattern enum
+
+```csharp
+namespace Hondarersoft.Bleio
+{
+    public enum SerialLedPattern : byte
+    {
+        On = 0,            // 常時点灯 (デフォルト)
+        Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
+        Blink500ms = 2,    // 500ms 点灯 / 500ms 消灯
+        Rainbow = 3,       // 虹色パターン
+        Flicker1 = 4,      // 炎のゆらめきパターン (GPIO 共有明度、色相ゆらぎなし)
+        Flicker2 = 5,      // 炎のゆらめきパターン (LED 個別明度、色相ゆらぎなし)
+        Flicker3 = 6,      // 炎のゆらめきパターン (LED 個別明度、色相ゆらぎあり)
+        Unset = 0xFF       // 個別 LED のパターン設定をクリア (GPIO パターンに戻す)
+    }
+}
+```
+
 ### AdcReading record
 
 ```csharp
@@ -343,7 +386,7 @@ ADC 読み取り結果を表現します。
 ```csharp
 namespace Hondarersoft.Bleio
 {
-    public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2);
+    public record GpioCommand(byte Pin, byte Command, byte Param1, byte Param2, byte Param3, byte Param4);
 }
 ```
 
@@ -361,6 +404,9 @@ namespace Hondarersoft.Bleio
 | SET_OUTPUT_BLINK_500MS | 0x04 | `SetOutputAsync(pin, OutputKind.Blink500ms)` | 500ms 点滅 |
 | SET_OUTPUT_PWM | 0x05 | `SetPwmAsync(pin, dutyCycle, frequency)` | PWM 出力 |
 | SET_OUTPUT_ON_DISCONNECT | 0x09 | `SetDisconnectBehaviorAsync(pin, behavior)` | 切断時動作 |
+| SET_OUTPUT_SERIALLED_ENABLE | 0x11 | `EnableSerialLedAsync(pin, numLeds, brightness, ledType)` | シリアル LED 有効化 |
+| SET_OUTPUT_SERIALLED_BASECOLOR | 0x12 | `SetSerialLedColorAsync(pin, ledIndex, r, g, b)` | シリアル LED 色設定 |
+| SET_OUTPUT_SERIALLED_PATTERN | 0x13 | `SetSerialLedPatternAsync(pin, ledIndex, pattern, ptnParam1, ptnParam2)` | シリアル LED パターン |
 | SET_INPUT_FLOATING | 0x81 | `SetInputAsync(pin, InputConfig.Floating, latchMode)` | 入力 (フローティング) |
 | SET_INPUT_PULLUP | 0x82 | `SetInputAsync(pin, InputConfig.PullUp, latchMode)` | 入力 (プルアップ) |
 | SET_INPUT_PULLDOWN | 0x83 | `SetInputAsync(pin, InputConfig.PullDown, latchMode)` | 入力 (プルダウン) |
@@ -416,7 +462,7 @@ Console.WriteLine($"電圧: {reading.Voltage:F3}V");
 public static class Command
 {
     public static GpioCommand SetOutput(byte pin, OutputKind outputKind) =>
-        new GpioCommand(pin, (byte)outputKind, 0, 0);
+        new GpioCommand(pin, (byte)outputKind, 0, 0, 0, 0);
 
     public static GpioCommand SetPwm(byte pin, double dutyCycle, PwmFrequency frequency = PwmFrequency.Freq1kHz)
     {
@@ -424,20 +470,43 @@ public static class Command
             throw new ArgumentOutOfRangeException(nameof(dutyCycle), "デューティサイクルは 0.0 から 1.0 の範囲で指定してください");
 
         byte dutyCycleByte = (byte)Math.Round(dutyCycle * 255);
-        return new GpioCommand(pin, 0x05, dutyCycleByte, (byte)frequency);
+        return new GpioCommand(pin, 0x05, dutyCycleByte, (byte)frequency, 0, 0);
     }
 
     public static GpioCommand SetInput(byte pin, InputConfig config, LatchMode latchMode = LatchMode.None) =>
-        new GpioCommand(pin, (byte)config, (byte)latchMode, 0);
+        new GpioCommand(pin, (byte)config, (byte)latchMode, 0, 0, 0);
 
     public static GpioCommand EnableAdc(byte pin, AdcAttenuation attenuation = AdcAttenuation.Atten11dB) =>
-        new GpioCommand(pin, 0x91, (byte)attenuation, 0);
+        new GpioCommand(pin, 0x91, (byte)attenuation, 0, 0, 0);
 
     public static GpioCommand DisableAdc(byte pin) =>
-        new GpioCommand(pin, 0x92, 0, 0);
+        new GpioCommand(pin, 0x92, 0, 0, 0, 0);
 
     public static GpioCommand SetDisconnectBehavior(byte pin, DisconnectBehavior behavior) =>
-        new GpioCommand(pin, 0x09, (byte)behavior, 0);
+        new GpioCommand(pin, 0x09, (byte)behavior, 0, 0, 0);
+
+    public static GpioCommand EnableSerialLed(
+        byte pin,
+        byte numLeds,
+        byte brightness = 255,
+        SerialLedType ledType = SerialLedType.WS2812B_RGB)
+    {
+        if (numLeds == 0)
+            throw new ArgumentException("LED 個数は 1 以上を指定してください", nameof(numLeds));
+
+        return new GpioCommand(pin, 0x11, numLeds, brightness, (byte)ledType, 0);
+    }
+
+    public static GpioCommand SetSerialLedColor(byte pin, byte ledIndex, byte r, byte g, byte b) =>
+        new GpioCommand(pin, 0x12, ledIndex, r, g, b);
+
+    public static GpioCommand SetSerialLedPattern(
+        byte pin,
+        byte ledIndex,
+        SerialLedPattern pattern,
+        byte ptnParam1 = 0,
+        byte ptnParam2 = 0) =>
+        new GpioCommand(pin, 0x13, ledIndex, (byte)pattern, ptnParam1, ptnParam2);
 }
 ```
 
@@ -455,46 +524,47 @@ if (pin != 32 && pin != 33 && pin != 34 && pin != 35 && pin != 36 && pin != 39)
 
 出力専用ピン (GPIO34-39) や内部予約ピン (GPIO4, GPIO5) に対する不適切な設定は、サーバー側で無視されます。クライアント側では検証を行いません。
 
-## WS2812B シリアル LED 制御
+## シリアル LED 制御
 
-WS2812B は、1 本の信号線でカラー LED (RGB) を制御できるシリアル LED ドライバ IC です。
+WS2812B / WS2811 などのシリアル LED は、1 本の信号線でカラー LED (RGB) を制御できます。
 
-### EnableWs2812bAsync
+### EnableSerialLedAsync
 
-GPIO を WS2812B 出力モードに設定し、LED 個数と基準輝度を指定します。
+GPIO をシリアル LED 出力モードに設定し、LED 個数、基準輝度、LED 種別を指定します。
 
 ```csharp
-public async Task EnableWs2812bAsync(byte pin, byte numLeds, byte brightness = 0)
+public async Task EnableSerialLedAsync(byte pin, byte numLeds, byte brightness = 255, SerialLedType ledType = SerialLedType.WS2812B_RGB)
 ```
 
 **パラメータ**
 
 - `pin`: GPIO ピン番号 (出力可能なピン)
 - `numLeds`: LED 個数 (1-256)
-- `brightness`: 基準輝度 (0-255、0 は 100% を意味する)
+- `brightness`: 基準輝度 (0-255、デフォルト: 255 = 100%)
+- `ledType`: LED 種別 (SerialLedType enum、デフォルト: WS2812B_RGB)
 
 **使用例**
 
 ```csharp
-// GPIO18 に 10 個の LED を接続、基準輝度 100% (0)
-await client.EnableWs2812bAsync(pin: 18, numLeds: 10, brightness: 0);
+// GPIO18 に 10 個の WS2812B (RGB 順) を接続、基準輝度 100%
+await client.EnableSerialLedAsync(pin: 18, numLeds: 10);
 
-// GPIO18 に 10 個の LED を接続、基準輝度 50% (128)
-await client.EnableWs2812bAsync(pin: 18, numLeds: 10, brightness: 128);
+// GPIO18 に 10 個の WS2812B (GRB 順) を接続、基準輝度 50%
+await client.EnableSerialLedAsync(pin: 18, numLeds: 10, brightness: 128, ledType: SerialLedType.WS2812B_GRB);
 ```
 
-### SetWs2812bColorAsync
+### SetSerialLedColorAsync
 
-WS2812B LED チェーンの特定の LED に色を設定します。
+シリアル LED チェーンの特定の LED に色を設定します。
 
 ```csharp
-public async Task SetWs2812bColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b)
+public async Task SetSerialLedColorAsync(byte pin, byte ledIndex, byte r, byte g, byte b)
 ```
 
 **パラメータ**
 
 - `pin`: GPIO ピン番号
-- `ledIndex`: LED 番号 (1 から始まる)
+- `ledIndex`: LED 番号 (0: GPIO 全体、1-255: 個別 LED)
 - `r`: 赤 (0-255)
 - `g`: 緑 (0-255)
 - `b`: 青 (0-255)
@@ -502,65 +572,63 @@ public async Task SetWs2812bColorAsync(byte pin, byte ledIndex, byte r, byte g, 
 **使用例**
 
 ```csharp
+// GPIO18 のすべての LED を赤に設定
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 0, r: 255, g: 0, b: 0);
+
 // GPIO18 の LED1 を赤に設定
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0);
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0);
 
 // GPIO18 の LED2 を緑に設定
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 2, r: 0, g: 255, b: 0);
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 2, r: 0, g: 255, b: 0);
 
 // GPIO18 の LED3 を青に設定
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 3, r: 0, g: 0, b: 255);
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 3, r: 0, g: 0, b: 255);
 ```
 
-### SetWs2812bPatternAsync
+### SetSerialLedPatternAsync
 
-WS2812B LED チェーンの点灯パターンを設定します。個別の LED ごと、または GPIO 全体に対してパターンを適用できます。
+シリアル LED チェーンの点灯パターンを設定します。個別の LED ごと、または GPIO 全体に対してパターンを適用できます。
 
 ```csharp
-public async Task SetWs2812bPatternAsync(byte pin, byte ledIndex, Ws2812bPattern pattern, byte param1 = 0, byte param2 = 0)
+public async Task SetSerialLedPatternAsync(byte pin, byte ledIndex, SerialLedPattern pattern, byte? ptnParam1 = null, byte? ptnParam2 = null)
 ```
 
 **パラメータ**
 
 - `pin`: GPIO ピン番号
 - `ledIndex`: LED 番号 (0: GPIO 全体、1-255: 個別 LED)
-- `pattern`: パターンタイプ (Ws2812bPattern enum)
-- `param1`: パターンパラメータ1 (パターンにより異なる)
-- `param2`: パターンパラメータ2 (パターンにより異なる)
+- `pattern`: パターンタイプ (SerialLedPattern enum)
+- `ptnParam1`: パターンパラメータ1 (パターンにより異なる、デフォルト: null = パターン別デフォルト値)
+- `ptnParam2`: パターンパラメータ2 (パターンにより異なる、デフォルト: null = パターン別デフォルト値)
 
-**Ws2812bPattern enum**
+**デフォルト値**
 
-```csharp
-public enum Ws2812bPattern : byte
-{
-    On = 0,            // 常時点灯 (デフォルト)
-    Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
-    Blink500ms = 2,    // 500ms 点灯 / 500ms 消灯
-    Rainbow = 3,       // 虹色パターン
-    Flicker = 4,       // 炎のゆらめきパターン
-    Unset = 0xFF       // 個別 LED のパターン設定をクリア (GPIO パターンに戻す)
-}
-```
+`ptnParam1` と `ptnParam2` に `null` を指定すると、パターンに応じた以下のデフォルト値が自動設定されます。
+
+- **Rainbow**: ptnParam1 = 12, ptnParam2 = 128
+- **Flicker1, Flicker2, Flicker3**: ptnParam1 = 128, ptnParam2 = 128
+- **その他**: ptnParam1 = 0, ptnParam2 = 0
 
 **パターンパラメータ**
 
-- **On, Blink250ms, Blink500ms, Unset**: param1, param2 は未使用 (0)
+- **On, Blink250ms, Blink500ms, Unset**: ptnParam1, ptnParam2 は未使用 (0)
 - **Rainbow**:
-  - param1: 色相が一周する LED 個数 (1-16、デフォルト: 12)
+  - ptnParam1: 色相が一周する LED 個数 (1-16)
     - 例: 10 個の LED で色相を 2 周させたい場合は 5 を指定
-  - param2: 変化スピード (0-255、デフォルト: 128)
-    - 0: 約 0.64秒で一周 (デフォルト、中速)
+  - ptnParam2: 変化スピード (0-255)
+    - 0: 静止 (色相が変化しない)
     - 1: 約 82秒 (1.4分) で一周 (非常にゆっくり)
     - 64: 約 1.28秒で一周 (やや遅い)
     - 128: 約 0.64秒で一周 (中速)
     - 255: 約 0.32秒で一周 (高速)
-- **Flicker**:
-  - param1: ゆらめきの速度 (0-255、デフォルト: 128)
-    - 0: 約 0.5秒周期で変化 (デフォルト、中速)
-    - 64: 約 1秒周期で変化 (ゆっくり)
-    - 128: 約 0.5秒周期で変化 (中速)
-    - 255: 約 0.25秒周期で変化 (速い)
-  - param2: ゆらめきの変化幅 (0-255、デフォルト: 128)
+- **Flicker1, Flicker2, Flicker3**:
+  - ptnParam1: ゆらめきの速度 (0-255)
+    - 0: 約 1秒周期で変化 (ゆっくり)
+    - 64: 約 0.6秒周期で変化 (やや遅い)
+    - 128: 約 0.15秒周期で変化 (中速)
+    - 192: 約 0.1秒周期で変化 (やや速い)
+    - 255: 約 0.05秒周期で変化 (速い)
+  - ptnParam2: ゆらめきの変化幅 (0-255)
     - 0: 変動なし (基準色のまま)
     - 64: 小さい変動 (控えめなゆらめき)
     - 128: 中程度の変動 (自然なゆらめき)
@@ -571,32 +639,37 @@ public enum Ws2812bPattern : byte
 
 ```csharp
 // GPIO18 のすべての LED を虹色パターンに設定 (色相が 12 LED で一周、スピード 128)
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Rainbow, param1: 12, param2: 128);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 0, pattern: SerialLedPattern.Rainbow, ptnParam1: 12, ptnParam2: 128);
 
 // GPIO18 の LED1 を 250ms 点滅パターンに設定
-// (事前に SetWs2812bColorAsync でベースカラーを設定しておく)
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0); // 赤に設定
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Blink250ms);
+// (事前に SetSerialLedColorAsync でベースカラーを設定しておく)
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0); // 赤に設定
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: SerialLedPattern.Blink250ms);
 
 // GPIO18 の LED2-10 を虹色パターン、LED1 を赤の点滅に設定
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0);
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Blink250ms);
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Rainbow, param1: 10, param2: 128);
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 1, r: 255, g: 0, b: 0);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: SerialLedPattern.Blink250ms);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 0, pattern: SerialLedPattern.Rainbow, ptnParam1: 10, ptnParam2: 128);
 
 // GPIO18 の LED1 の個別パターン設定をクリアして GPIO パターンに戻す
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 1, pattern: Ws2812bPattern.Unset);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: SerialLedPattern.Unset);
 
-// GPIO18 のすべての LED を赤色の炎のゆらめきに設定
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0); // 赤色に設定
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Flicker, param1: 128, param2: 128);
+// GPIO18 のすべての LED を赤色の炎のゆらめきに設定 (Flicker3: 色相ゆらぎあり)
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0); // 赤色に設定
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 0, pattern: SerialLedPattern.Flicker3, ptnParam1: 128, ptnParam2: 128);
 
-// ゆっくりとしたゆらめき
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Flicker, param1: 64, param2: 96);
+// GPIO18 の LED1 と LED2 で同期したゆらめき (Flicker1: GPIO 共有明度)
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: SerialLedPattern.Flicker1, ptnParam1: 128, ptnParam2: 128);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: SerialLedPattern.Flicker1, ptnParam1: 128, ptnParam2: 128);
 
-// 激しいゆらめき
-await client.SetWs2812bColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
-await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPattern.Flicker, param1: 255, param2: 192);
+// ゆっくりとしたゆらめき (Flicker2: LED 個別明度)
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 0, pattern: SerialLedPattern.Flicker2, ptnParam1: 64, ptnParam2: 96);
+
+// 激しいゆらめき (Flicker3: 色相ゆらぎあり)
+await client.SetSerialLedColorAsync(pin: 18, ledIndex: 0, r: 255, g: 64, b: 0);
+await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 0, pattern: SerialLedPattern.Flicker3, ptnParam1: 255, ptnParam2: 192);
 ```
 
 **動作仕様**
@@ -605,11 +678,11 @@ await client.SetWs2812bPatternAsync(pin: 18, ledIndex: 0, pattern: Ws2812bPatter
 - 個別の LED にパターンを設定した場合、その LED は個別パターンが優先されます
 - 個別パターンが設定されていない LED は、GPIO 全体のパターン (LED 番号 0) を継承します
 - BLINK 系パターンは、デジタル出力の SET_OUTPUT_BLINK_250MS / SET_OUTPUT_BLINK_500MS と同じタイミングで点滅します
-- RAINBOW パターンは、SetWs2812bColorAsync で設定した色を無視します
+- RAINBOW パターンは、SetSerialLedColorAsync で設定した色を無視します
 - FLICKER1 パターンは、同じ GPIO の FLICKER1 LED すべてで明度が同期します。色相ゆらぎはありません
 - FLICKER2 パターンは、LED ごとに独立した明度のゆらめきを持ちます。色相ゆらぎはありません
 - FLICKER3 パターンは、LED ごとに独立した明度と色相のゆらめきを持ちます
-- PATTERN_UNSET は個別 LED (LED 番号 1-255) にのみ設定可能で、個別設定をクリアして GPIO 全体のパターンに戻します
+- UNSET は個別 LED (LED 番号 1-255) にのみ設定可能で、個別設定をクリアして GPIO 全体のパターンに戻します
 
 **RAINBOW パターンの動作詳細**
 

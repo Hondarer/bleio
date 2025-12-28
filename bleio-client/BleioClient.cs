@@ -670,14 +670,50 @@ namespace Hondarersoft.Bleio
             byte pin,
             byte ledIndex,
             SerialLedPattern pattern,
-            byte param1 = 0,
-            byte param2 = 0)
+            byte? ptnParam1 = null,
+            byte? ptnParam2 = null)
         {
             EnsureConnected();
 
+            if (ptnParam1 == null)
+            {
+                switch (pattern)
+                {
+                    case SerialLedPattern.Rainbow:
+                        ptnParam1 = 12;
+                        break;
+                    case SerialLedPattern.Flicker1:
+                    case SerialLedPattern.Flicker2:
+                    case SerialLedPattern.Flicker3:
+                        ptnParam1 = 128;
+                        break;
+                    default:
+                        ptnParam1 = 0;
+                        break;
+                }
+            }
+
+            if (ptnParam2 == null)
+            {
+                switch (pattern)
+                {
+                    case SerialLedPattern.Rainbow:
+                        ptnParam2 = 128;
+                        break;
+                    case SerialLedPattern.Flicker1:
+                    case SerialLedPattern.Flicker2:
+                    case SerialLedPattern.Flicker3:
+                        ptnParam2 = 128;
+                        break;
+                    default:
+                        ptnParam2 = 0;
+                        break;
+                }
+            }
+
             // コマンドを送信 (コマンド 0x13: SET_OUTPUT_SERIALLED_PATTERN)
             await SendCommandsAsync(new[] {
-                new GpioCommand(pin, 0x13, ledIndex, (byte)pattern, param1, param2)
+                new GpioCommand(pin, 0x13, ledIndex, (byte)pattern, (byte)ptnParam1, (byte)ptnParam2)
             });
         }
 
