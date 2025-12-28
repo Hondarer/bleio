@@ -17,6 +17,10 @@ namespace Hondarersoft.Bleio
         private const string CharGpioReadUuid = "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e";
         private const string CharAdcReadUuid = "2d8a7b3c-4e9f-4a1b-8c5d-6e7f8a9b0c1d";
 
+        private const int ConnectionRetries = 3;          // 接続リトライ回数
+        private const int ServiceDiscoveryRetries = 3;    // サービス検索リトライ回数
+        private const int RetryDelayMs = 500;             // リトライ間の待機時間
+
         private BluetoothLEDevice? _device;
         private GattDeviceService? _service;
         private GattCharacteristic? _writeCharacteristic;
@@ -29,83 +33,102 @@ namespace Hondarersoft.Bleio
             string serviceUuid = ServiceUuid,
             int timeoutMs = 8000)
         {
-            try
+            var target = Guid.Parse(serviceUuid);
+
+            // 接続リトライ
+            for (int attempt = 1; attempt <= ConnectionRetries; attempt++)
             {
-                var target = Guid.Parse(serviceUuid);
-
-                // 1台見つかったら完了
-                var tcs = new TaskCompletionSource<BluetoothLEDevice?>(
-                    TaskCreationOptions.RunContinuationsAsynchronously);
-
-                var watcher = new BluetoothLEAdvertisementWatcher
+                try
                 {
-                    ScanningMode = BluetoothLEScanningMode.Active,
-                    AdvertisementFilter = new BluetoothLEAdvertisementFilter()
-                };
-                watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(target);
+                    // 1台見つかったら完了
+                    var tcs = new TaskCompletionSource<BluetoothLEDevice?>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
 
-                // 名前比較は OrdinalIgnoreCase で
-                bool HasNameMatch(string? n) =>
-                    !string.IsNullOrWhiteSpace(deviceName)
-                    ? !string.IsNullOrWhiteSpace(n) &&
-                      n.IndexOf(deviceName!, StringComparison.OrdinalIgnoreCase) >= 0
-                    : true; // フィルタ指定なしなら無条件でOK
-
-                TypedEventHandler<BluetoothLEAdvertisementWatcher, BluetoothLEAdvertisementReceivedEventArgs>? handler = null;
-                handler = async (w, e) =>
-                {
-                    try
+                    var watcher = new BluetoothLEAdvertisementWatcher
                     {
-                        // 接続して Name を確認
-                        var dev = await BluetoothLEDevice.FromBluetoothAddressAsync(e.BluetoothAddress);
-                        if (dev != null)
+                        ScanningMode = BluetoothLEScanningMode.Active,
+                        AdvertisementFilter = new BluetoothLEAdvertisementFilter()
+                    };
+                    watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(target);
+
+                    // 名前比較は OrdinalIgnoreCase で
+                    bool HasNameMatch(string? n) =>
+                        !string.IsNullOrWhiteSpace(deviceName)
+                        ? !string.IsNullOrWhiteSpace(n) &&
+                          n.IndexOf(deviceName!, StringComparison.OrdinalIgnoreCase) >= 0
+                        : true; // フィルタ指定なしなら無条件でOK
+
+                    TypedEventHandler<BluetoothLEAdvertisementWatcher, BluetoothLEAdvertisementReceivedEventArgs>? handler = null;
+                    handler = async (w, e) =>
+                    {
+                        try
                         {
-                            if (HasNameMatch(dev.Name))
+                            // 接続して Name を確認
+                            var dev = await BluetoothLEDevice.FromBluetoothAddressAsync(e.BluetoothAddress);
+                            if (dev != null)
                             {
-                                tcs.TrySetResult(dev);
-                            }
-                            else
-                            {
-                                // フィルタ不一致なら破棄
-                                dev.Dispose();
+                                if (HasNameMatch(dev.Name))
+                                {
+                                    tcs.TrySetResult(dev);
+                                }
+                                else
+                                {
+                                    // フィルタ不一致なら破棄
+                                    dev.Dispose();
+                                }
                             }
                         }
-                    }
-                    catch
+                        catch
+                        {
+                            // 1 件ごとの取得失敗は無視して継続
+                        }
+                    };
+
+                    watcher.Received += handler!;
+                    watcher.Start();
+
+                    using var cts = new System.Threading.CancellationTokenSource(timeoutMs);
+                    using var reg = cts.Token.Register(() => tcs.TrySetResult(null));
+
+                    _device = await tcs.Task;
+
+                    watcher.Received -= handler!;
+                    watcher.Stop();
+
+                    if (_device == null)
                     {
-                        // 1 件ごとの取得失敗は無視して継続
+                        if (attempt < ConnectionRetries)
+                        {
+                            await Task.Delay(RetryDelayMs);
+                            continue;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(deviceName))
+                            Console.WriteLine($"サービスUUID {target} かつ 名前に \"{deviceName}\" を含むデバイスは見つかりません (timeout {timeoutMs}ms)");
+                        else
+                            Console.WriteLine($"サービスUUID {target} を広告するデバイスが見つかりません (timeout {timeoutMs}ms)");
+                        return false;
                     }
-                };
 
-                watcher.Received += handler!;
-                watcher.Start();
-
-                using var cts = new System.Threading.CancellationTokenSource(timeoutMs);
-                using var reg = cts.Token.Register(() => tcs.TrySetResult(null));
-
-                _device = await tcs.Task;
-
-                watcher.Received -= handler!;
-                watcher.Stop();
-
-                if (_device == null)
+                    return await InitializeDeviceAsync();
+                }
+                catch (Exception ex)
                 {
-                    if (!string.IsNullOrWhiteSpace(deviceName))
-                        Console.WriteLine($"サービスUUID {target} かつ 名前に \"{deviceName}\" を含むデバイスは見つかりません (timeout {timeoutMs}ms)");
-                    else
-                        Console.WriteLine($"サービスUUID {target} を広告するデバイスが見つかりません (timeout {timeoutMs}ms)");
+                    CleanupResources();
+
+                    if (attempt < ConnectionRetries)
+                    {
+                        await Task.Delay(RetryDelayMs);
+                        continue;
+                    }
+
+                    Console.WriteLine($"UUID探索接続エラー({ex}): {ex.Message}");
+                    Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
                     return false;
                 }
+            }
 
-                return await InitializeDeviceAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"UUID探索接続エラー({ex}): {ex.Message}");
-                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-                CleanupResources();
-                return false;
-            }
+            return false;
         }
 
         public async Task<bool> ConnectByMacAddressAsync(string macAddress)
@@ -141,32 +164,53 @@ namespace Hondarersoft.Bleio
 
         public async Task<bool> ConnectByMacAddressAsync(ulong bluetoothAddress)
         {
-            try
+            var macString = string.Join(":",
+                Enumerable.Range(0, 6)
+                    .Select(i => ((bluetoothAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
+
+            // 接続リトライ
+            for (int attempt = 1; attempt <= ConnectionRetries; attempt++)
             {
-                // MAC アドレスの表示
-                var macString = string.Join(":",
-                    Enumerable.Range(0, 6)
-                        .Select(i => ((bluetoothAddress >> (8 * (5 - i))) & 0xFF).ToString("x2")));
-                Console.WriteLine($"MAC アドレス {macString} のデバイスに接続を試みています...");
-
-                // MAC アドレスから直接接続
-                _device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress);
-
-                if (_device == null)
+                try
                 {
-                    Console.WriteLine($"MAC アドレス {macString} のデバイスへの接続に失敗しました");
+                    if (attempt == 1)
+                    {
+                        Console.WriteLine($"MAC アドレス {macString} のデバイスに接続を試みています...");
+                    }
+
+                    // MAC アドレスから直接接続
+                    _device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress);
+
+                    if (_device == null)
+                    {
+                        if (attempt < ConnectionRetries)
+                        {
+                            await Task.Delay(RetryDelayMs);
+                            continue;
+                        }
+                        Console.WriteLine($"MAC アドレス {macString} のデバイスへの接続に失敗しました");
+                        return false;
+                    }
+
+                    return await InitializeDeviceAsync();
+                }
+                catch (Exception ex)
+                {
+                    CleanupResources();
+
+                    if (attempt < ConnectionRetries)
+                    {
+                        await Task.Delay(RetryDelayMs);
+                        continue;
+                    }
+
+                    Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
+                    Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
                     return false;
                 }
+            }
 
-                return await InitializeDeviceAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"接続エラー({ex.ToString()}): {ex.Message}");
-                Console.WriteLine($"スタックトレース:\n{ex.StackTrace}");
-                CleanupResources();
-                return false;
-            }
+            return false;
         }
 
         private async Task<bool> InitializeDeviceAsync()
@@ -189,26 +233,39 @@ namespace Hondarersoft.Bleio
 
                 var targetUuid = Guid.Parse(ServiceUuid);
 
-                // 速すぎると接続できないので、待ちを入れる
-                const int retries = 10;
-                for (int i = 0; i < retries; i++)
+                // サービス検索を複数回リトライ
+                for (int discoveryAttempt = 1; discoveryAttempt <= ServiceDiscoveryRetries; discoveryAttempt++)
                 {
-                    try
+                    // 速すぎると接続できないので、待ちを入れる
+                    const int retries = 10;
+                    for (int i = 0; i < retries; i++)
                     {
-                        var res = await _device.GetGattServicesForUuidAsync(targetUuid);
-                        if (res.Status == GattCommunicationStatus.Success && res.Services?.Count > 0)
+                        try
                         {
-                            _service = res.Services[0];
-                            break;
+                            var res = await _device.GetGattServicesForUuidAsync(targetUuid);
+                            if (res.Status == GattCommunicationStatus.Success && res.Services?.Count > 0)
+                            {
+                                _service = res.Services[0];
+                                break;
+                            }
                         }
+                        catch (System.Runtime.InteropServices.COMException)
+                        {
+                            // 0x80070016 を含むタイミング系は待って再試行
+                        }
+                        await Task.Delay(10); // 短いクールダウン
                     }
-                    catch (System.Runtime.InteropServices.COMException)
-                    //catch (System.Runtime.InteropServices.COMException ex)
+
+                    if (_service != null)
                     {
-                        // 0x80070016 を含むタイミング系は待って再試行
-                        //Console.WriteLine($"  Cached 取得例外(HRESULT=0x{ex.HResult:X8}) try {i + 1}/{retries}");
+                        break; // サービスが見つかったのでリトライ終了
                     }
-                    await Task.Delay(10); // 短いクールダウン
+
+                    // サービスが見つからない場合、次のリトライへ
+                    if (discoveryAttempt < ServiceDiscoveryRetries)
+                    {
+                        await Task.Delay(RetryDelayMs);
+                    }
                 }
 
                 if (_service == null)

@@ -20,11 +20,14 @@ class Program
             }
 
 
-            await client.EnableSerialLedAsync(18, 2, 192);
-            await client.SetSerialLedColorAsync(18, 1, 255, 190, 90);
-            await client.SetSerialLedColorAsync(18, 2, 255, 190, 90);
-            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 196);
-            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 196);
+            await client.EnableSerialLedAsync(18, 2, 255);
+            await client.SetSerialLedColorAsync(18, 1, 0, 0, 0);
+            await client.SetSerialLedColorAsync(18, 2, 0, 0, 0);
+            await Task.Delay(1000);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 128);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Flicker, param1: 128, param2: 128);
+            await client.SetSerialLedColorAsync(18, 1, 255, 182, 75);
+            await client.SetSerialLedColorAsync(18, 2, 255, 182, 75);
             return;
 
             await client.SetOutputAsync(16, BleioClient.OutputKind.Low); // 白 (ミニ)
