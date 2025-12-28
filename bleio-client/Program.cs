@@ -24,8 +24,8 @@ class Program
             await client.SetSerialLedColorAsync(18, 1, 0, 0, 0);
             await client.SetSerialLedColorAsync(18, 2, 0, 0, 0);
             await Task.Delay(1000);
-            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Flicker3, param1: 128, param2: 128);
-            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Flicker3, param1: 128, param2: 128);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 1, pattern: BleioClient.SerialLedPattern.Flicker1, param1: 128, param2: 128);
+            await client.SetSerialLedPatternAsync(pin: 18, ledIndex: 2, pattern: BleioClient.SerialLedPattern.Flicker2, param1: 128, param2: 128);
             await client.SetSerialLedColorAsync(18, 1, 255, 182, 75);
             await client.SetSerialLedColorAsync(18, 2, 255, 182, 75);
             return;
