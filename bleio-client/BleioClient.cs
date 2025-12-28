@@ -601,7 +601,9 @@ namespace Hondarersoft.Bleio
             Blink250ms = 1,    // 250ms 点灯 / 250ms 消灯
             Blink500ms = 2,    // 500ms 点灯 / 500ms 消灯
             Rainbow = 3,       // 虹色パターン
-            Flicker = 4,       // 炎のゆらめきパターン
+            Flicker1 = 4,      // 炎のゆらめきパターン (GPIO 共有明度、色相ゆらぎなし)
+            Flicker2 = 5,      // 炎のゆらめきパターン (LED 個別明度、色相ゆらぎなし)
+            Flicker3 = 6,      // 炎のゆらめきパターン (LED 個別明度、色相ゆらぎあり)
             Unset = 0xFF       // 個別設定をクリア (GPIO パターンを継承)
         }
 
